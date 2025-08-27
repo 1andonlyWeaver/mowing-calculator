@@ -83,6 +83,18 @@
                             <input type="number" id="longitude" placeholder="e.g., -74.0060" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                         </div>
 
+                        <!-- Grass Type Preset -->
+                        <div class="md:col-span-2">
+                            <label for="grassType" class="block text-sm font-medium text-gray-600">Grass Type (preset)</label>
+                            <select id="grassType" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                                <option value="custom" selected>Custom</option>
+                                <option value="kentucky_bluegrass">Kentucky Bluegrass</option>
+                                <option value="bermuda_grass">Bermuda Grass</option>
+                                <option value="zoysia_grass">Zoysia Grass</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Selecting a grass type will fill Base, Upper, and Target. You can still edit them.</p>
+                        </div>
+
                         <!-- MGDD Thresholds -->
                         <div>
                             <label for="baseTemp" class="block text-sm font-medium text-gray-600">Base Temperature (°F)</label>
@@ -325,6 +337,10 @@
             const viewPlotBtn = document.getElementById('viewPlotBtn');
             const forecastCard = document.getElementById('forecast-card');
             const plotCard = document.getElementById('plot-card');
+            const baseTempInput = document.getElementById('baseTemp');
+            const upperTempInput = document.getElementById('upperTemp');
+            const targetGddInput = document.getElementById('targetGDD');
+            const grassTypeSelect = document.getElementById('grassType');
 
             // --- CHART INSTANCE ---
             let gddChartInstance = null;
@@ -355,6 +371,39 @@
             }
             viewTableBtn.addEventListener('click', showForecastView);
             viewPlotBtn.addEventListener('click', showPlotView);
+
+
+            // --- GRASS TYPE PRESETS ---
+            const grassPresets = {
+                kentucky_bluegrass: { base: 32, upper: 86, target: 250 },
+                bermuda_grass: { base: 50, upper: 86, target: 200 },
+                zoysia_grass: { base: 50, upper: 86, target: 225 }
+            };
+
+            if (grassTypeSelect) {
+                grassTypeSelect.addEventListener('change', function () {
+                    const preset = grassPresets[grassTypeSelect.value];
+                    if (preset) {
+                        baseTempInput.value = String(preset.base);
+                        upperTempInput.value = String(preset.upper);
+                        targetGddInput.value = String(preset.target);
+                    }
+                });
+
+                [baseTempInput, upperTempInput, targetGddInput].forEach(function (el) {
+                    el.addEventListener('input', function () {
+                        if (!grassTypeSelect || grassTypeSelect.value === 'custom') return;
+                        const preset = grassPresets[grassTypeSelect.value];
+                        if (!preset) return;
+                        const matchesPreset = Number(baseTempInput.value) === preset.base &&
+                                              Number(upperTempInput.value) === preset.upper &&
+                                              Number(targetGddInput.value) === preset.target;
+                        if (!matchesPreset) {
+                            grassTypeSelect.value = 'custom';
+                        }
+                    });
+                });
+            }
 
 
             // --- DATE INITIALIZATION ---
