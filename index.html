@@ -72,6 +72,12 @@
                 <!-- Settings Card -->
                 <div class="bg-white p-6 rounded-xl shadow-md">
                     <h2 class="text-xl font-semibold mb-4 text-gray-700">2. Set Parameters</h2>
+                    <div class="flex justify-center mb-4">
+                        <div class="inline-flex rounded-md shadow-sm" role="group">
+                            <button id="modeRealtimeBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">Real-time</button>
+                            <button id="modeClimoBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white text-gray-700 border border-gray-300">Climatology</button>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Location Inputs -->
                         <div>
@@ -143,7 +149,7 @@
                     </div>
                     <div id="error-message" class="hidden text-center text-red-500 font-medium py-10"></div>
                 </div>
-                <div class="bg-white p-3 rounded-xl shadow-md">
+                <div id="view-toggle-card" class="bg-white p-3 rounded-xl shadow-md">
                     <div class="flex justify-center">
                         <div class="inline-flex rounded-md shadow-sm" role="group">
                             <button id="viewTableBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">Forecast</button>
@@ -158,13 +164,37 @@
                     </div>
                 </div>
                 <div id="plot-card" class="bg-white p-6 rounded-xl shadow-md hidden">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Accumulation Plot</h2>
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="text-xl font-semibold text-gray-700">Accumulation Plot</h2>
+                        <button id="maximizePlotBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Maximize</button>
+                    </div>
                     <div id="chart-container">
                         <canvas id="gddChart"></canvas>
                          <p id="chart-initial-message" class="text-center text-gray-500 py-10">Chart will be displayed here after calculation.</p>
                     </div>
                 </div>
+                <div id="climo-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="text-xl font-semibold text-gray-700">Climatology: Days Between Mows by Last Mow Date</h2>
+                        <button id="maximizeClimoBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Maximize</button>
+                    </div>
+                    <div id="climo-chart-container" style="height: 420px;">
+                        <canvas id="climoChart"></canvas>
+                        <p id="climo-initial-message" class="text-center text-gray-500 py-10">Climatology will be displayed here after calculation.</p>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Using PRISM 1991–2020 daily normals (maxt/mint) via ACIS GridData.</p>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen overlay for charts -->
+    <div id="fullscreen-overlay" class="fixed inset-0 bg-white z-50 hidden">
+        <div class="absolute top-3 right-3">
+            <button id="closeFullscreenBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Close</button>
+        </div>
+        <div class="w-full h-full p-4">
+            <canvas id="fullscreenChart" style="width: 100%; height: 100%;"></canvas>
         </div>
     </div>
 
@@ -325,6 +355,7 @@
             // --- UI ELEMENT REFERENCES ---
             const calculateBtn = document.getElementById('calculateBtn');
             const lastMowedDateInput = document.getElementById('lastMowedDate');
+            const lastMowedContainer = lastMowedDateInput ? lastMowedDateInput.parentElement : null;
             const resultContainer = document.getElementById('result-container');
             const resultDateEl = document.getElementById('resultDate');
             const currentGDDEl = document.getElementById('currentGDD');
@@ -337,17 +368,57 @@
             const viewPlotBtn = document.getElementById('viewPlotBtn');
             const forecastCard = document.getElementById('forecast-card');
             const plotCard = document.getElementById('plot-card');
+            const viewToggleCard = document.getElementById('view-toggle-card');
             const baseTempInput = document.getElementById('baseTemp');
             const upperTempInput = document.getElementById('upperTemp');
             const targetGddInput = document.getElementById('targetGDD');
             const grassTypeSelect = document.getElementById('grassType');
+            const modeRealtimeBtn = document.getElementById('modeRealtimeBtn');
+            const modeClimoBtn = document.getElementById('modeClimoBtn');
+            const climoCard = document.getElementById('climo-card');
+            const climoInitialMessage = document.getElementById('climo-initial-message');
 
             // --- CHART INSTANCE ---
             let gddChartInstance = null;
+            let climoChartInstance = null;
+            let fullscreenChartInstance = null;
             const annotationPlugin = window['chartjs-plugin-annotation'] || window.ChartAnnotation;
             if (annotationPlugin && typeof Chart?.register === 'function') {
                 Chart.register(annotationPlugin);
             }
+
+            // --- MODE TOGGLE ---
+            let appMode = 'realtime'; // 'realtime' | 'climo'
+            function setModeRealtime() {
+                appMode = 'realtime';
+                modeRealtimeBtn.classList.add('bg-green-600','text-white','border-green-600');
+                modeRealtimeBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                modeClimoBtn.classList.remove('bg-green-600','text-white','border-green-600');
+                modeClimoBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+                if (lastMowedContainer) lastMowedContainer.classList.remove('hidden');
+                calculateBtn.textContent = 'Estimate Next Mow Date';
+                viewToggleCard.classList.remove('hidden');
+                forecastCard.classList.remove('hidden');
+                plotCard.classList.add('hidden');
+                climoCard.classList.add('hidden');
+                showForecastView();
+            }
+            function setModeClimo() {
+                appMode = 'climo';
+                modeClimoBtn.classList.add('bg-green-600','text-white','border-green-600');
+                modeClimoBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                modeRealtimeBtn.classList.remove('bg-green-600','text-white','border-green-600');
+                modeRealtimeBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+                if (lastMowedContainer) lastMowedContainer.classList.add('hidden');
+                calculateBtn.textContent = 'Calculate Climatology';
+                viewToggleCard.classList.add('hidden');
+                forecastCard.classList.add('hidden');
+                plotCard.classList.add('hidden');
+                climoCard.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+            }
+            modeRealtimeBtn.addEventListener('click', setModeRealtime);
+            modeClimoBtn.addEventListener('click', setModeClimo);
 
             // --- VIEW TOGGLE ---
             function showForecastView() {
@@ -413,7 +484,13 @@
             lastMowedDateInput.max = formattedToday;
 
             // --- CORE LOGIC ---
-            calculateBtn.addEventListener('click', handleCalculation);
+            calculateBtn.addEventListener('click', function() {
+                if (appMode === 'climo') {
+                    handleClimatologyCalculation();
+                } else {
+                    handleCalculation();
+                }
+            });
 
             function validateInputs() {
                 const inputs = [
@@ -694,6 +771,200 @@
                 const futureDate = new Date();
                 futureDate.setDate(futureDate.getDate() + days);
                 return futureDate.toISOString().split('T')[0];
+            }
+
+            // --- CLIMATOLOGY MODE ---
+            function renderClimoChart(labels, dataValues) {
+                if (climoChartInstance) {
+                    climoChartInstance.destroy();
+                }
+                const ctx = document.getElementById('climoChart').getContext('2d');
+                climoChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Days to Target (MGDD) by Last Mow Date',
+                            data: dataValues,
+                            borderColor: 'rgb(76, 175, 80)',
+                            backgroundColor: 'rgba(76, 175, 80, 0.3)',
+                            fill: false,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: { display: true, text: 'Climatological Average Interval to Next Mow' },
+                            legend: { position: 'bottom' }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: 'Last Mow Date (by day-of-year)' }, ticks: { maxRotation: 0, autoSkip: true } },
+                            y: { title: { display: true, text: 'Days to target MGDD' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
+            function getDoy(dateObj) {
+                const startOfYear = new Date(dateObj.getFullYear(), 0, 1);
+                const diffMs = dateObj - startOfYear;
+                return Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1; // 1..366
+            }
+
+            async function handleClimatologyCalculation() {
+                // Validate required inputs except last mowed
+                const inputs = [
+                    latInput.value,
+                    lonInput.value,
+                    baseTempInput.value,
+                    upperTempInput.value,
+                    targetGddInput.value
+                ];
+                if (inputs.some(function(v){ return v === ''; })) {
+                    showError('Please fill in all fields and select a location on the map.');
+                    return;
+                }
+                showLoading();
+                if (climoInitialMessage) climoInitialMessage.classList.add('hidden');
+                const lat = parseFloat(latInput.value);
+                const lon = parseFloat(lonInput.value);
+                const baseT = parseFloat(baseTempInput.value);
+                const upperT = parseFloat(upperTempInput.value);
+                const targetGDD = parseFloat(targetGddInput.value);
+
+                try {
+                    const normalsData = await fetchAcisData(lat, lon, '1991-01-01', '2020-12-31');
+                    if (!normalsData.daily || !Array.isArray(normalsData.daily.time)) {
+                        throw new Error('Normals data could not be retrieved. Please try again.');
+                    }
+                    const sumMin = new Array(366).fill(0); // index by DOY
+                    const sumMax = new Array(366).fill(0);
+                    const count = new Array(366).fill(0);
+                    normalsData.daily.time.forEach(function(dateStr, i) {
+                        const d = new Date(dateStr + 'T00:00:00');
+                        const m = d.getMonth();
+                        const day = d.getDate();
+                        // Skip Feb 29 to keep 365-day climatology
+                        if (m === 1 && day === 29) return;
+                        const doy = getDoy(d); // 1..366 (but 60 skipped on leap years)
+                        const tmin = normalsData.daily.temperature_2m_min[i];
+                        const tmax = normalsData.daily.temperature_2m_max[i];
+                        if (Number.isFinite(tmin) && Number.isFinite(tmax)) {
+                            sumMin[doy] += tmin;
+                            sumMax[doy] += tmax;
+                            count[doy] += 1;
+                        }
+                    });
+
+                    // Build 1..365 arrays (skip index 0)
+                    const avgMin = [];
+                    const avgMax = [];
+                    for (let doy = 1; doy <= 365; doy++) {
+                        if (count[doy] > 0) {
+                            avgMin.push(sumMin[doy] / count[doy]);
+                            avgMax.push(sumMax[doy] / count[doy]);
+                        } else {
+                            // Fill gaps (e.g., if any) with nearest previous available
+                            const lastMin = avgMin.length ? avgMin[avgMin.length - 1] : baseT;
+                            const lastMax = avgMax.length ? avgMax[avgMax.length - 1] : baseT + 10;
+                            avgMin.push(lastMin);
+                            avgMax.push(lastMax);
+                        }
+                    }
+
+                    // Compute daily normal MGDD per DOY 0..364
+                    const dailyGdd = avgMin.map(function(minT, idx) {
+                        const maxT = avgMax[idx];
+                        return calculateGDD(minT, maxT, baseT, upperT);
+                    });
+
+                    // Precompute cumulative over two cycles for wrap-around
+                    const twoYear = dailyGdd.concat(dailyGdd);
+                    const cum = new Array(twoYear.length + 1).fill(0);
+                    for (let i = 0; i < twoYear.length; i++) cum[i + 1] = cum[i] + twoYear[i];
+
+                    const daysToTarget = new Array(365).fill(null);
+                    for (let start = 0; start < 365; start++) {
+                        const startCum = cum[start];
+                        // binary/linear search for first index where cum[j] - startCum >= target
+                        let j = start + 1;
+                        while (j < start + 365 && cum[j] - startCum < targetGDD) j++;
+                        if (cum[j] - startCum >= targetGDD) {
+                            daysToTarget[start] = j - start;
+                        } else {
+                            daysToTarget[start] = null; // target not reached within a year
+                        }
+                    }
+
+                    // Labels as month/day using a non-leap reference year (e.g., 2021)
+                    const labels = [];
+                    const refYear = 2021;
+                    let refDate = new Date(refYear, 0, 1);
+                    for (let i = 0; i < 365; i++) {
+                        labels.push(refDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+                        refDate.setDate(refDate.getDate() + 1);
+                    }
+
+                    renderClimoChart(labels, daysToTarget);
+                    loadingSpinner.classList.add('hidden');
+                    errorMessage.classList.add('hidden');
+                } catch (err) {
+                    console.error('Climatology Error:', err);
+                    showError(err.message || 'An error occurred during climatology calculation.');
+                }
+            }
+
+            // --- FULLSCREEN LOGIC ---
+            const fullscreenOverlay = document.getElementById('fullscreen-overlay');
+            const closeFullscreenBtn = document.getElementById('closeFullscreenBtn');
+            const maximizePlotBtn = document.getElementById('maximizePlotBtn');
+            const maximizeClimoBtn = document.getElementById('maximizeClimoBtn');
+
+            function openFullscreenFromChart(chartInstance, newTitle) {
+                if (!chartInstance) return;
+                fullscreenOverlay.classList.remove('hidden');
+                const ctx = document.getElementById('fullscreenChart').getContext('2d');
+                if (fullscreenChartInstance) {
+                    fullscreenChartInstance.destroy();
+                }
+                // Deep clone data/options to avoid shared references
+                const dataCopy = JSON.parse(JSON.stringify(chartInstance.data));
+                const optionsCopy = JSON.parse(JSON.stringify(chartInstance.options || {}));
+                if (!optionsCopy.plugins) optionsCopy.plugins = {};
+                optionsCopy.plugins.title = optionsCopy.plugins.title || {};
+                optionsCopy.plugins.title.display = true;
+                optionsCopy.plugins.title.text = newTitle || optionsCopy.plugins.title.text || 'Chart';
+                optionsCopy.responsive = true;
+                optionsCopy.maintainAspectRatio = false;
+                fullscreenChartInstance = new Chart(ctx, {
+                    type: chartInstance.config.type || 'line',
+                    data: dataCopy,
+                    options: optionsCopy
+                });
+            }
+
+            function closeFullscreen() {
+                if (fullscreenChartInstance) {
+                    fullscreenChartInstance.destroy();
+                    fullscreenChartInstance = null;
+                }
+                fullscreenOverlay.classList.add('hidden');
+            }
+
+            if (maximizePlotBtn) {
+                maximizePlotBtn.addEventListener('click', function(){
+                    openFullscreenFromChart(gddChartInstance, 'MGDD Accumulation Over Time');
+                });
+            }
+            if (maximizeClimoBtn) {
+                maximizeClimoBtn.addEventListener('click', function(){
+                    openFullscreenFromChart(climoChartInstance, 'Climatological Average Interval to Next Mow');
+                });
+            }
+            if (closeFullscreenBtn) {
+                closeFullscreenBtn.addEventListener('click', closeFullscreen);
             }
         });
     </script>
