@@ -143,6 +143,10 @@
                         <p class="text-gray-600">Current MGDD since last mow:</p>
                         <p id="currentGDD" class="text-2xl font-semibold text-gray-800"></p>
                     </div>
+                    <div id="climo-result-container" class="text-center space-y-4 hidden">
+                        <p class="text-gray-600">Expected mows per year:</p>
+                        <p id="mowsPerYear" class="text-3xl font-bold text-green-600"></p>
+                    </div>
                     <div id="loading-spinner" class="hidden flex justify-center items-center py-10">
                         <div class="spinner w-12 h-12 rounded-full border-4 border-gray-200"></div>
                     </div>
@@ -154,18 +158,18 @@
                 <div id="view-toggle-card" class="bg-white p-3 rounded-xl shadow-md">
                     <div class="flex justify-center">
                         <div class="inline-flex rounded-md shadow-sm" role="group">
-                            <button id="viewTableBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">Forecast</button>
-                            <button id="viewPlotBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white text-gray-700 border border-gray-300">Plot</button>
+                            <button id="viewPlotBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">Plot</button>
+                            <button id="viewTableBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white text-gray-700 border border-gray-300">Table</button>
                         </div>
                     </div>
                 </div>
-                 <div id="forecast-card" class="bg-white p-6 rounded-xl shadow-md">
+                 <div id="forecast-card" class="bg-white p-6 rounded-xl shadow-md hidden">
                     <h2 class="text-xl font-semibold mb-4 text-gray-700">Forecast Breakdown</h2>
                     <div id="forecast-breakdown" class="space-y-2 text-sm max-h-60 overflow-y-auto">
                         <p class="text-center text-gray-500">Forecast data will appear here after calculation.</p>
                     </div>
                 </div>
-                <div id="plot-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                <div id="plot-card" class="bg-white p-6 rounded-xl shadow-md">
                     <div class="flex items-center justify-between mb-2">
                         <h2 class="text-xl font-semibold text-gray-700">Accumulation Plot</h2>
                         <button id="maximizePlotBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Maximize</button>
@@ -183,6 +187,12 @@
                     <div id="climo-chart-container" style="height: 420px;">
                         <canvas id="climoChart"></canvas>
                         <p id="climo-initial-message" class="text-center text-gray-500 py-10">Climatology will be displayed here after calculation.</p>
+                    </div>
+                    <div class="mt-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Monthly Median Days Until Next Mow</h3>
+                        <div id="climo-monthly-chart-container" style="height: 280px;">
+                            <canvas id="climoMonthlyChart"></canvas>
+                        </div>
                     </div>
                     <p class="text-xs text-gray-500 mt-2">Using PRISM 1991–2020 daily normals (maxt/mint) via ACIS GridData.</p>
                 </div>
@@ -380,10 +390,13 @@
             const modeClimoBtn = document.getElementById('modeClimoBtn');
             const climoCard = document.getElementById('climo-card');
             const climoInitialMessage = document.getElementById('climo-initial-message');
+            const climoResultContainer = document.getElementById('climo-result-container');
+            const mowsPerYearEl = document.getElementById('mowsPerYear');
 
             // --- CHART INSTANCE ---
             let gddChartInstance = null;
             let climoChartInstance = null;
+            let climoMonthlyChartInstance = null;
             let fullscreenChartInstance = null;
             const annotationPlugin = window['chartjs-plugin-annotation'] || window.ChartAnnotation;
             if (annotationPlugin && typeof Chart?.register === 'function') {
@@ -401,10 +414,11 @@
                 if (lastMowedContainer) lastMowedContainer.classList.remove('hidden');
                 calculateBtn.textContent = 'Estimate Next Mow Date';
                 viewToggleCard.classList.remove('hidden');
-                forecastCard.classList.remove('hidden');
-                plotCard.classList.add('hidden');
+                forecastCard.classList.add('hidden');
+                plotCard.classList.remove('hidden');
                 climoCard.classList.add('hidden');
-                showForecastView();
+                showPlotView();
+                if (climoResultContainer) climoResultContainer.classList.add('hidden');
             }
             function setModeClimo() {
                 appMode = 'climo';
@@ -419,6 +433,7 @@
                 plotCard.classList.add('hidden');
                 climoCard.classList.remove('hidden');
                 resultContainer.classList.add('hidden');
+                if (climoResultContainer) climoResultContainer.classList.add('hidden');
             }
             modeRealtimeBtn.addEventListener('click', setModeRealtime);
             modeClimoBtn.addEventListener('click', setModeClimo);
@@ -521,6 +536,7 @@
                 resultContainer.classList.add('hidden');
                 initialMessage.classList.add('hidden');
                 loadingSpinner.classList.add('hidden');
+                if (climoResultContainer) climoResultContainer.classList.add('hidden');
             }
 
             function showLoading() {
@@ -528,6 +544,7 @@
                 resultContainer.classList.add('hidden');
                 initialMessage.classList.add('hidden');
                 errorMessage.classList.add('hidden');
+                if (climoResultContainer) climoResultContainer.classList.add('hidden');
             }
 
             function showResults() {
@@ -819,6 +836,37 @@
                 });
             }
 
+            function renderClimoMonthlyChart(monthLabels, medianValues) {
+                if (climoMonthlyChartInstance) {
+                    climoMonthlyChartInstance.destroy();
+                }
+                const ctx = document.getElementById('climoMonthlyChart').getContext('2d');
+                climoMonthlyChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: monthLabels,
+                        datasets: [{
+                            label: 'Median Days Until Next Mow',
+                            data: medianValues,
+                            backgroundColor: 'rgba(76, 175, 80, 0.5)',
+                            borderColor: 'rgb(76, 175, 80)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: { display: true, text: 'Monthly Median Days Until Next Mow' },
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: 'Month' } },
+                            y: { title: { display: true, text: 'Days' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
             function getDoy(dateObj) {
                 const startOfYear = new Date(dateObj.getFullYear(), 0, 1);
                 const diffMs = dateObj - startOfYear;
@@ -920,8 +968,33 @@
                     }
 
                     renderClimoChart(labels, daysToTarget);
+
+                    // Compute monthly medians from daily daysToTarget
+                    const refYearForMonths = 2021; // non-leap reference
+                    let refDate2 = new Date(refYearForMonths, 0, 1);
+                    const monthBuckets = Array.from({ length: 12 }, function(){ return []; });
+                    for (let i = 0; i < 365; i++) {
+                        const val = daysToTarget[i];
+                        const monthIdx = refDate2.getMonth();
+                        if (val != null) monthBuckets[monthIdx].push(val);
+                        refDate2.setDate(refDate2.getDate() + 1);
+                    }
+                    function median(arr) {
+                        if (!arr || arr.length === 0) return null;
+                        const sorted = arr.slice().sort(function(a,b){ return a - b; });
+                        const mid = Math.floor(sorted.length / 2);
+                        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+                    }
+                    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const monthMedians = monthBuckets.map(median);
+                    renderClimoMonthlyChart(monthLabels, monthMedians);
                     loadingSpinner.classList.add('hidden');
                     errorMessage.classList.add('hidden');
+                    // Compute and display expected mows per year
+                    const annualGdd = dailyGdd.reduce(function(sum, v){ return sum + v; }, 0);
+                    const expectedMows = annualGdd / targetGDD;
+                    if (mowsPerYearEl) mowsPerYearEl.textContent = expectedMows.toFixed(1);
+                    if (climoResultContainer) climoResultContainer.classList.remove('hidden');
                 } catch (err) {
                     console.error('Climatology Error:', err);
                     showError(err.message || 'An error occurred during climatology calculation.');
