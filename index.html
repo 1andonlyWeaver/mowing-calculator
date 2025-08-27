@@ -137,6 +137,8 @@
                     <div id="result-container" class="text-center space-y-4 hidden">
                         <p class="text-gray-600">Estimated Next Mow Date:</p>
                         <p id="resultDate" class="text-3xl font-bold text-green-600"></p>
+                        <p class="text-gray-600">Days until next mow:</p>
+                        <p id="daysUntil" class="text-2xl font-semibold text-gray-800"></p>
                         <hr class="my-4">
                         <p class="text-gray-600">Current MGDD since last mow:</p>
                         <p id="currentGDD" class="text-2xl font-semibold text-gray-800"></p>
@@ -175,7 +177,7 @@
                 </div>
                 <div id="climo-card" class="bg-white p-6 rounded-xl shadow-md hidden">
                     <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-xl font-semibold text-gray-700">Climatology: Days Between Mows by Last Mow Date</h2>
+                        <h2 class="text-xl font-semibold text-gray-700">Climatology: Days Until Next Mow by Last Mow Date</h2>
                         <button id="maximizeClimoBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Maximize</button>
                     </div>
                     <div id="climo-chart-container" style="height: 420px;">
@@ -358,6 +360,7 @@
             const lastMowedContainer = lastMowedDateInput ? lastMowedDateInput.parentElement : null;
             const resultContainer = document.getElementById('result-container');
             const resultDateEl = document.getElementById('resultDate');
+            const daysUntilEl = document.getElementById('daysUntil');
             const currentGDDEl = document.getElementById('currentGDD');
             const loadingSpinner = document.getElementById('loading-spinner');
             const initialMessage = document.getElementById('initial-message');
@@ -573,6 +576,7 @@
                     const chartLabels = [];
                     const observedValues = [];
                     const forecastValues = [];
+                    let crossingDateHistorical = null;
 
                     // Process historical data
                     const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
@@ -583,6 +587,9 @@
                             accumulatedGDD += dailyGDD;
                             chartLabels.push(new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
                             observedValues.push(accumulatedGDD);
+                            if (!crossingDateHistorical && accumulatedGDD >= targetGDD) {
+                                crossingDateHistorical = date;
+                            }
                         }
                     });
                     
@@ -590,7 +597,7 @@
 
                     // Process forecast data
                     let forecastAccumulation = accumulatedGDD;
-                    let estimatedMowDate = null;
+                    let estimatedMowDate = crossingDateHistorical;
                     let forecastHTML = '<div class="font-semibold grid grid-cols-4 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Daily MGDD</div><div>Total</div></div>';
 
                     // Pad forecast array to align with observed data on the chart
@@ -629,8 +636,13 @@
                     if (estimatedMowDate) {
                         const dateObj = new Date(estimatedMowDate + 'T00:00:00');
                         resultDateEl.textContent = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                        const todayMidnight = new Date();
+                        todayMidnight.setHours(0,0,0,0);
+                        const diffDays = Math.round((dateObj - todayMidnight) / (1000 * 60 * 60 * 24));
+                        if (daysUntilEl) daysUntilEl.textContent = String(diffDays);
                     } else {
                         resultDateEl.textContent = "Beyond forecast range";
+                        if (daysUntilEl) daysUntilEl.textContent = 'N/A';
                     }
 
                     renderGddChart(chartLabels, observedValues, forecastValues, targetGDD);
@@ -784,7 +796,7 @@
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: 'Days to Target (MGDD) by Last Mow Date',
+                            label: 'Days Until Next Mow by Last Mow Date',
                             data: dataValues,
                             borderColor: 'rgb(76, 175, 80)',
                             backgroundColor: 'rgba(76, 175, 80, 0.3)',
@@ -801,7 +813,7 @@
                         },
                         scales: {
                             x: { title: { display: true, text: 'Last Mow Date (by day-of-year)' }, ticks: { maxRotation: 0, autoSkip: true } },
-                            y: { title: { display: true, text: 'Days to target MGDD' }, beginAtZero: true }
+                            y: { title: { display: true, text: 'Days Until Next Mow' }, beginAtZero: true }
                         }
                     }
                 });
@@ -960,7 +972,7 @@
             }
             if (maximizeClimoBtn) {
                 maximizeClimoBtn.addEventListener('click', function(){
-                    openFullscreenFromChart(climoChartInstance, 'Climatological Average Interval to Next Mow');
+                    openFullscreenFromChart(climoChartInstance, 'Climatology: Days Until Next Mow');
                 });
             }
             if (closeFullscreenBtn) {
