@@ -23,6 +23,13 @@
         .leaflet-container {
              background: #a5d6a7; /* Light green fallback */
         }
+        #chart-container {
+            height: 420px;
+        }
+        #chart-container canvas {
+            width: 100%;
+            height: 100%;
+        }
         .spinner {
             border-top-color: #3498db;
             animation: spin 1s linear infinite;
@@ -117,13 +124,21 @@
                     </div>
                     <div id="error-message" class="hidden text-center text-red-500 font-medium py-10"></div>
                 </div>
-                 <div class="bg-white p-6 rounded-xl shadow-md">
+                 <div id="forecast-card" class="bg-white p-6 rounded-xl shadow-md">
                     <h2 class="text-xl font-semibold mb-4 text-gray-700">Forecast Breakdown</h2>
                     <div id="forecast-breakdown" class="space-y-2 text-sm max-h-60 overflow-y-auto">
                         <p class="text-center text-gray-500">Forecast data will appear here after calculation.</p>
                     </div>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-md">
+                <div class="bg-white p-3 rounded-xl shadow-md">
+                    <div class="flex justify-center">
+                        <div class="inline-flex rounded-md shadow-sm" role="group">
+                            <button id="viewTableBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">Forecast</button>
+                            <button id="viewPlotBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white text-gray-700 border border-gray-300">Plot</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="plot-card" class="bg-white p-6 rounded-xl shadow-md hidden">
                     <h2 class="text-xl font-semibold mb-4 text-gray-700">Accumulation Plot</h2>
                     <div id="chart-container">
                         <canvas id="gddChart"></canvas>
@@ -174,6 +189,10 @@
             const errorMessage = document.getElementById('error-message');
             const forecastBreakdownEl = document.getElementById('forecast-breakdown');
             const chartInitialMessage = document.getElementById('chart-initial-message');
+            const viewTableBtn = document.getElementById('viewTableBtn');
+            const viewPlotBtn = document.getElementById('viewPlotBtn');
+            const forecastCard = document.getElementById('forecast-card');
+            const plotCard = document.getElementById('plot-card');
 
             // --- CHART INSTANCE ---
             let gddChartInstance = null;
@@ -181,6 +200,29 @@
             if (annotationPlugin && typeof Chart?.register === 'function') {
                 Chart.register(annotationPlugin);
             }
+
+            // --- VIEW TOGGLE ---
+            function showForecastView() {
+                forecastCard.classList.remove('hidden');
+                plotCard.classList.add('hidden');
+                viewTableBtn.classList.add('bg-green-600','text-white','border-green-600');
+                viewTableBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                viewPlotBtn.classList.remove('bg-green-600','text-white','border-green-600');
+                viewPlotBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+            }
+            function showPlotView() {
+                forecastCard.classList.add('hidden');
+                plotCard.classList.remove('hidden');
+                viewPlotBtn.classList.add('bg-green-600','text-white','border-green-600');
+                viewPlotBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                viewTableBtn.classList.remove('bg-green-600','text-white','border-green-600');
+                viewTableBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+                if (gddChartInstance) {
+                    gddChartInstance.resize();
+                }
+            }
+            viewTableBtn.addEventListener('click', showForecastView);
+            viewPlotBtn.addEventListener('click', showPlotView);
 
 
             // --- DATE INITIALIZATION ---
@@ -294,8 +336,13 @@
                     let forecastHTML = '<div class="font-semibold grid grid-cols-4 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Daily MGDD</div><div>Total</div></div>';
 
                     // Pad forecast array to align with observed data on the chart
-                    forecastValues.push(...new Array(observedValues.length - 1).fill(null));
-                    forecastValues.push(observedValues.length > 0 ? observedValues[observedValues.length - 1] : 0);
+                    const padLength = Math.max(0, observedValues.length - 1);
+                    if (padLength > 0) {
+                        forecastValues.push(...new Array(padLength).fill(null));
+                        forecastValues.push(observedValues[observedValues.length - 1]);
+                    } else {
+                        forecastValues.push(0);
+                    }
 
                     forecastData.daily.time.forEach((date, i) => {
                         const dailyGDD = calculateGDD(forecastData.daily.temperature_2m_min[i], forecastData.daily.temperature_2m_max[i], baseT, upperT);
@@ -330,6 +377,9 @@
 
                     renderGddChart(chartLabels, observedValues, forecastValues, targetGDD);
                     showResults();
+                    if (!plotCard.classList.contains('hidden')) {
+                        if (gddChartInstance) gddChartInstance.resize();
+                    }
 
                 } catch (error) {
                     console.error("Calculation Error:", error);
@@ -365,6 +415,7 @@
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
                         plugins: {
                             title: { display: true, text: 'MGDD Accumulation Over Time' },
                             legend: { position: 'bottom' },
