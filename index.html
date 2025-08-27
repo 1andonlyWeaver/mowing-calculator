@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MGDD Mow Date Estimator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js" xintegrity="sha512-Hn1d6YQe93sPfwOKs/s1y22/i4K59s/uB58AmPNO7KPrhU2s29hYhzh5Kj32zvO/lOxk+kn3s3l9V/J5s2pkA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            height: 400px;
+            border-radius: 0.5rem;
+            z-index: 1;
+        }
+        .leaflet-container {
+             background: #a5d6a7; /* Light green fallback */
+        }
+        .spinner {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <meta name="description" content="Estimate your next mow date using Modified Growing Degree Days (MGDD) with historical and forecast weather data.">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Next Mow Date Estimator</h1>
+            <p class="text-gray-600 mt-2">Using Modified Growing Degree Days (MGDD) to predict lawn growth.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Left Column: Controls & Map -->
+            <div class="lg:col-span-2 space-y-8">
+                <!-- Map Card -->
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">1. Select Location</h2>
+                    <div id="map"></div>
+                </div>
+
+                <!-- Settings Card -->
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">2. Set Parameters</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Location Inputs -->
+                        <div>
+                            <label for="latitude" class="block text-sm font-medium text-gray-600">Latitude</label>
+                            <input type="number" id="latitude" placeholder="e.g., 40.7128" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label for="longitude" class="block text-sm font-medium text-gray-600">Longitude</label>
+                            <input type="number" id="longitude" placeholder="e.g., -74.0060" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        </div>
+
+                        <!-- MGDD Thresholds -->
+                        <div>
+                            <label for="baseTemp" class="block text-sm font-medium text-gray-600">Base Temperature (°F)</label>
+                            <input type="number" id="baseTemp" value="50" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label for="upperTemp" class="block text-sm font-medium text-gray-600">Upper Temperature (°F)</label>
+                            <input type="number" id="upperTemp" value="86" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        </div>
+
+                        <!-- Target & Last Mowed -->
+                        <div>
+                            <label for="targetGDD" class="block text-sm font-medium text-gray-600">Target MGDD Accumulation</label>
+                            <input type="number" id="targetGDD" value="150" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label for="lastMowedDate" class="block text-sm font-medium text-gray-600">Last Mowed On</label>
+                            <input type="date" id="lastMowedDate" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <button id="calculateBtn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-transform transform hover:scale-105">
+                    Estimate Next Mow Date
+                </button>
+
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">3. Estimated Result</h2>
+                    <div id="result-container" class="text-center space-y-4 hidden">
+                        <p class="text-gray-600">Estimated Next Mow Date:</p>
+                        <p id="resultDate" class="text-3xl font-bold text-green-600"></p>
+                        <hr class="my-4">
+                        <p class="text-gray-600">Current MGDD since last mow:</p>
+                        <p id="currentGDD" class="text-2xl font-semibold text-gray-800"></p>
+                    </div>
+                    <div id="loading-spinner" class="hidden flex justify-center items-center py-10">
+                        <div class="spinner w-12 h-12 rounded-full border-4 border-gray-200"></div>
+                    </div>
+                     <div id="initial-message" class="text-center text-gray-500 py-10">
+                        <p>Fill out the parameters and click calculate to see your estimated next mow date.</p>
+                    </div>
+                    <div id="error-message" class="hidden text-center text-red-500 font-medium py-10"></div>
+                </div>
+                 <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Forecast Breakdown</h2>
+                    <div id="forecast-breakdown" class="space-y-2 text-sm max-h-60 overflow-y-auto">
+                        <p class="text-center text-gray-500">Forecast data will appear here after calculation.</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Accumulation Plot</h2>
+                    <div id="chart-container">
+                        <canvas id="gddChart"></canvas>
+                         <p id="chart-initial-message" class="text-center text-gray-500 py-10">Chart will be displayed here after calculation.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- LEAFLET MAP INITIALIZATION ---
+            const map = L.map('map').setView([39.8283, -98.5795], 4); // Centered on the US
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            let marker = L.marker([39.8283, -98.5795], { draggable: true }).addTo(map);
+            
+            const latInput = document.getElementById('latitude');
+            const lonInput = document.getElementById('longitude');
+
+            function updateInputs(latlng) {
+                latInput.value = latlng.lat.toFixed(4);
+                lonInput.value = latlng.lng.toFixed(4);
+            }
+            
+            updateInputs(marker.getLatLng());
+
+            marker.on('dragend', function (e) {
+                updateInputs(e.target.getLatLng());
+            });
+
+            map.on('click', function(e) {
+                marker.setLatLng(e.latlng);
+                updateInputs(e.latlng);
+            });
+
+            // --- UI ELEMENT REFERENCES ---
+            const calculateBtn = document.getElementById('calculateBtn');
+            const lastMowedDateInput = document.getElementById('lastMowedDate');
+            const resultContainer = document.getElementById('result-container');
+            const resultDateEl = document.getElementById('resultDate');
+            const currentGDDEl = document.getElementById('currentGDD');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const initialMessage = document.getElementById('initial-message');
+            const errorMessage = document.getElementById('error-message');
+            const forecastBreakdownEl = document.getElementById('forecast-breakdown');
+            const chartInitialMessage = document.getElementById('chart-initial-message');
+
+            // --- CHART INSTANCE ---
+            let gddChartInstance = null;
+            Chart.register(window.ChartAnnotation);
+
+
+            // --- DATE INITIALIZATION ---
+            const today = new Date();
+            const formattedToday = today.toISOString().split('T')[0];
+            lastMowedDateInput.value = formattedToday;
+            lastMowedDateInput.max = formattedToday;
+
+            // --- CORE LOGIC ---
+            calculateBtn.addEventListener('click', handleCalculation);
+
+            function validateInputs() {
+                const inputs = [
+                    latInput.value,
+                    lonInput.value,
+                    document.getElementById('baseTemp').value,
+                    document.getElementById('upperTemp').value,
+                    document.getElementById('targetGDD').value,
+                    lastMowedDateInput.value
+                ];
+                if (inputs.some(val => val === '')) {
+                    showError("Please fill in all fields and select a location on the map.");
+                    return false;
+                }
+                if (new Date(lastMowedDateInput.value) > today) {
+                    showError("The 'Last Mowed On' date cannot be in the future.");
+                    return false;
+                }
+                return true;
+            }
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                initialMessage.classList.add('hidden');
+                loadingSpinner.classList.add('hidden');
+            }
+
+            function showLoading() {
+                loadingSpinner.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                initialMessage.classList.add('hidden');
+                errorMessage.classList.add('hidden');
+            }
+
+            function showResults() {
+                loadingSpinner.classList.add('hidden');
+                resultContainer.classList.remove('hidden');
+            }
+
+            /**
+             * Calculates the Modified Growing Degree Day for a single day.
+             */
+            function calculateGDD(minTemp, maxTemp, baseTemp, upperTemp) {
+                let adjustedMin = minTemp < baseTemp ? baseTemp : minTemp;
+                let adjustedMax = maxTemp > upperTemp ? upperTemp : maxTemp;
+                const avgTemp = (adjustedMin + adjustedMax) / 2;
+                const gdd = avgTemp - baseTemp;
+                return gdd > 0 ? gdd : 0;
+            }
+
+            async function handleCalculation() {
+                if (!validateInputs()) return;
+                
+                showLoading();
+                forecastBreakdownEl.innerHTML = '';
+                chartInitialMessage.classList.add('hidden');
+
+
+                const lat = parseFloat(latInput.value);
+                const lon = parseFloat(lonInput.value);
+                const baseT = parseFloat(document.getElementById('baseTemp').value);
+                const upperT = parseFloat(document.getElementById('upperTemp').value);
+                const targetGDD = parseFloat(document.getElementById('targetGDD').value);
+                const lastMowed = lastMowedDateInput.value;
+                
+                try {
+                    const [historicalData, forecastData] = await Promise.all([
+                        fetchAcisData(lat, lon, lastMowed, getYesterdayString()),
+                        fetchOpenMeteoData(lat, lon, getTodayString(), getFutureDateString(15))
+                    ]);
+                    
+                    if (!historicalData.daily || !forecastData.daily) {
+                         throw new Error("Weather data could not be retrieved. Please try again.");
+                    }
+
+                    // --- DATA PROCESSING & CHART PREPARATION ---
+                    let accumulatedGDD = 0;
+                    const chartLabels = [];
+                    const observedValues = [];
+                    const forecastValues = [];
+
+                    // Process historical data
+                    const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
+                    historicalData.daily.time.forEach((date, i) => {
+                        const currentDate = new Date(date + 'T00:00:00');
+                        if (currentDate > lastMowedDateObj) {
+                            const dailyGDD = calculateGDD(historicalData.daily.temperature_2m_min[i], historicalData.daily.temperature_2m_max[i], baseT, upperT);
+                            accumulatedGDD += dailyGDD;
+                            chartLabels.push(new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+                            observedValues.push(accumulatedGDD);
+                        }
+                    });
+                    
+                    currentGDDEl.textContent = accumulatedGDD.toFixed(1);
+
+                    // Process forecast data
+                    let forecastAccumulation = accumulatedGDD;
+                    let estimatedMowDate = null;
+                    let forecastHTML = '<div class="font-semibold grid grid-cols-4 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Daily MGDD</div><div>Total</div></div>';
+
+                    // Pad forecast array to align with observed data on the chart
+                    forecastValues.push(...new Array(observedValues.length - 1).fill(null));
+                    forecastValues.push(observedValues.length > 0 ? observedValues[observedValues.length - 1] : 0);
+
+                    forecastData.daily.time.forEach((date, i) => {
+                        const dailyGDD = calculateGDD(forecastData.daily.temperature_2m_min[i], forecastData.daily.temperature_2m_max[i], baseT, upperT);
+                        forecastAccumulation += dailyGDD;
+
+                        const displayDate = new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                        chartLabels.push(displayDate);
+                        forecastValues.push(forecastAccumulation);
+                        
+                        forecastHTML += `
+                            <div class="grid grid-cols-4 gap-2 py-1 ${forecastAccumulation >= targetGDD && !estimatedMowDate ? 'bg-green-100 rounded font-bold' : ''}">
+                                <div>${displayDate}</div>
+                                <div>${Math.round(forecastData.daily.temperature_2m_min[i])}°/${Math.round(forecastData.daily.temperature_2m_max[i])}°</div>
+                                <div>${dailyGDD.toFixed(1)}</div>
+                                <div>${forecastAccumulation.toFixed(1)}</div>
+                            </div>
+                        `;
+
+                        if (forecastAccumulation >= targetGDD && !estimatedMowDate) {
+                            estimatedMowDate = date;
+                        }
+                    });
+
+                    forecastBreakdownEl.innerHTML = forecastHTML;
+
+                    if (estimatedMowDate) {
+                        const dateObj = new Date(estimatedMowDate + 'T00:00:00');
+                        resultDateEl.textContent = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                    } else {
+                        resultDateEl.textContent = "Beyond forecast range";
+                    }
+
+                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD);
+                    showResults();
+
+                } catch (error) {
+                    console.error("Calculation Error:", error);
+                    showError(error.message || "An error occurred during calculation.");
+                }
+            }
+            
+            function renderGddChart(labels, observedData, forecastData, target) {
+                if (gddChartInstance) {
+                    gddChartInstance.destroy();
+                }
+                const ctx = document.getElementById('gddChart').getContext('2d');
+                gddChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Observed Accumulation',
+                            data: observedData,
+                            borderColor: 'rgb(54, 162, 235)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            fill: false,
+                            tension: 0.1
+                        }, {
+                            label: 'Forecasted Accumulation',
+                            data: forecastData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: 'MGDD Accumulation Over Time' },
+                            legend: { position: 'bottom' },
+                            annotation: {
+                                annotations: {
+                                    thresholdLine: {
+                                        type: 'line',
+                                        yMin: target,
+                                        yMax: target,
+                                        borderColor: 'rgb(75, 192, 192)',
+                                        borderWidth: 2,
+                                        borderDash: [10, 5],
+                                        label: {
+                                            content: `Target: ${target}`,
+                                            enabled: true,
+                                            position: 'end',
+                                            backgroundColor: 'rgba(75, 192, 192, 0.8)'
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: 'Date' } },
+                            y: { title: { display: true, text: 'Accumulated MGDD' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
+            /**
+             * Fetches historical weather data from the ACIS API using the PRISM dataset.
+             */
+            async function fetchAcisData(lat, lon, startDate, endDate) {
+                if (new Date(startDate) > new Date(endDate)) {
+                    return { daily: { time: [], temperature_2m_min: [], temperature_2m_max: [] } };
+                }
+
+                const apiUrl = 'https://data.rcc-acis.org/GridData';
+                const params = {
+                    loc: `${lon},${lat}`,
+                    sdate: startDate,
+                    edate: endDate,
+                    grid: '21',
+                    elems: "maxt,mint",
+                    meta: []
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+
+                if (!response.ok) throw new Error(`ACIS API error! status: ${response.status}`);
+                const acisResult = await response.json();
+                if (acisResult.error) throw new Error(`ACIS API returned an error: ${acisResult.error}`);
+
+                const formattedData = { daily: { time: [], temperature_2m_max: [], temperature_2m_min: [] } };
+                acisResult.data.forEach(day => {
+                    if (day[1] !== 'M' && day[2] !== 'M') {
+                        formattedData.daily.time.push(day[0]);
+                        formattedData.daily.temperature_2m_max.push(parseFloat(day[1]));
+                        formattedData.daily.temperature_2m_min.push(parseFloat(day[2]));
+                    }
+                });
+                return formattedData;
+            }
+
+            /**
+             * Fetches FORECAST weather data from the Open-Meteo API using GFS model.
+             */
+            async function fetchOpenMeteoData(lat, lon, startDate, endDate) {
+                if (new Date(startDate) > new Date(endDate)) {
+                    return { daily: { time: [], temperature_2m_min: [], temperature_2m_max: [] } };
+                }
+                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&start_date=${startDate}&end_date=${endDate}&timezone=auto&model=gfs`;
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(`Open-Meteo API error! status: ${response.status}`);
+                return await response.json();
+            }
+
+            // --- DATE HELPER FUNCTIONS ---
+            function getYesterdayString() {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                return yesterday.toISOString().split('T')[0];
+            }
+
+            function getTodayString() {
+                return new Date().toISOString().split('T')[0];
+            }
+
+            function getFutureDateString(days) {
+                const futureDate = new Date();
+                futureDate.setDate(futureDate.getDate() + days);
+                return futureDate.toISOString().split('T')[0];
+            }
+        });
+    </script>
+</body>
+</html>
+
+
