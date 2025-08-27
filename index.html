@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -182,6 +184,21 @@
                 marker.setLatLng(e.latlng);
                 updateInputs(e.latlng);
             });
+
+            // --- SEARCH CONTROL (GEOCODER) ---
+            if (L && L.Control && L.Control.Geocoder) {
+                const geocoder = L.Control.geocoder({
+                    defaultMarkGeocode: false,
+                    placeholder: 'Search address or place...'
+                })
+                .on('markgeocode', function(e) {
+                    const center = e.geocode.center;
+                    marker.setLatLng(center);
+                    map.fitBounds(e.geocode.bbox || L.latLngBounds(center, center).pad(0.01));
+                    updateInputs(center);
+                })
+                .addTo(map);
+            }
 
             // --- USE MY LOCATION BUTTON ---
             const useLocationBtn = document.getElementById('useLocationBtn');
