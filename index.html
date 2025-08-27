@@ -59,6 +59,11 @@
                 <!-- Map Card -->
                 <div class="bg-white p-6 rounded-xl shadow-md">
                     <h2 class="text-xl font-semibold mb-4 text-gray-700">1. Select Location</h2>
+                    <div class="flex justify-end mb-3">
+                        <button id="useLocationBtn" type="button" class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+                            Use my location
+                        </button>
+                    </div>
                     <div id="map"></div>
                 </div>
 
@@ -177,6 +182,116 @@
                 marker.setLatLng(e.latlng);
                 updateInputs(e.latlng);
             });
+
+            // --- USE MY LOCATION BUTTON ---
+            const useLocationBtn = document.getElementById('useLocationBtn');
+            function setUseLocationBtnState(isLoading) {
+                if (!useLocationBtn) return;
+                useLocationBtn.disabled = isLoading;
+                useLocationBtn.textContent = isLoading ? 'Locating...' : 'Use my location';
+            }
+            async function fallbackToIpLocation() {
+                try {
+                    // First attempt: ipapi.co
+                    {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 7000);
+                        const resp = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        if (resp.ok) {
+                            const data = await resp.json();
+                            const lat = parseFloat(data.latitude);
+                            const lon = parseFloat(data.longitude);
+                            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                                const latlng = L.latLng(lat, lon);
+                                marker.setLatLng(latlng);
+                                map.setView(latlng, 10);
+                                updateInputs(latlng);
+                                return true;
+                            }
+                        }
+                    }
+                    // Second attempt: ipwho.is
+                    {
+                        const controller2 = new AbortController();
+                        const timeoutId2 = setTimeout(() => controller2.abort(), 7000);
+                        const resp2 = await fetch('https://ipwho.is/', { signal: controller2.signal });
+                        clearTimeout(timeoutId2);
+                        if (resp2.ok) {
+                            const data2 = await resp2.json();
+                            if (data2 && data2.success && Number.isFinite(data2.latitude) && Number.isFinite(data2.longitude)) {
+                                const latlng = L.latLng(data2.latitude, data2.longitude);
+                                marker.setLatLng(latlng);
+                                map.setView(latlng, 10);
+                                updateInputs(latlng);
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                } catch (e) { return false; }
+            }
+            if (useLocationBtn) {
+                useLocationBtn.addEventListener('click', function () {
+                    if (!('geolocation' in navigator)) {
+                        // Try IP-based fallback if geolocation API is unavailable
+                        setUseLocationBtnState(true);
+                        fallbackToIpLocation().then(function (ok) {
+                            setUseLocationBtnState(false);
+                            if (!ok) {
+                                showError('Geolocation is not supported by your browser. Please enter coordinates or click on the map.');
+                            }
+                        });
+                        return;
+                    }
+                    // Some browsers require HTTPS or localhost for geolocation
+                    const isSecureContext = window.isSecureContext || location.hostname === 'localhost';
+                    if (!isSecureContext) {
+                        // On insecure contexts, fall back to approximate IP-based location
+                        setUseLocationBtnState(true);
+                        fallbackToIpLocation().then(function (ok) {
+                            setUseLocationBtnState(false);
+                            if (!ok) {
+                                showError('Geolocation requires a secure context (HTTPS or localhost). Please enter coordinates or click on the map.');
+                            }
+                        });
+                        return;
+                    }
+
+                    setUseLocationBtnState(true);
+                    navigator.geolocation.getCurrentPosition(function (position) {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const latlng = L.latLng(lat, lon);
+                        marker.setLatLng(latlng);
+                        map.setView(latlng, 12);
+                        updateInputs(latlng);
+                        setUseLocationBtnState(false);
+                    }, async function (err) {
+                        if (err && (err.code === 1 || err.code === 2 || err.code === 3)) {
+                            // Try approximate IP-based location as a fallback
+                            const ok = await fallbackToIpLocation();
+                            setUseLocationBtnState(false);
+                            if (!ok) {
+                                if (err.code === 1) {
+                                    showError('Location permission denied. Please allow access or enter coordinates manually.');
+                                } else if (err.code === 2) {
+                                    showError('Position unavailable. Try again or enter coordinates manually.');
+                                } else {
+                                    showError('Location request timed out. Try again or enter coordinates manually.');
+                                }
+                            }
+                            return;
+                        }
+                        let message = 'Unable to retrieve your location. Please enter coordinates or click on the map.';
+                        if (err && err.code === 1) {
+                            message = 'Location permission denied. Please allow access or enter coordinates manually.';
+                        }
+                        showError(message);
+                        setUseLocationBtnState(false);
+                    }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+                });
+            }
 
             // --- UI ELEMENT REFERENCES ---
             const calculateBtn = document.getElementById('calculateBtn');
