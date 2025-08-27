@@ -7,9 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js" xintegrity="sha512-Hn1d6YQe93sPfwOKs/s1y22/i4K59s/uB58AmPNO7KPrhU2s29hYhzh5Kj32zvO/lOxk+kn3s3l9V/J5s2pkA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:,">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -176,7 +177,10 @@
 
             // --- CHART INSTANCE ---
             let gddChartInstance = null;
-            Chart.register(window.ChartAnnotation);
+            const annotationPlugin = window['chartjs-plugin-annotation'] || window.ChartAnnotation;
+            if (annotationPlugin && typeof Chart?.register === 'function') {
+                Chart.register(annotationPlugin);
+            }
 
 
             // --- DATE INITIALIZATION ---
