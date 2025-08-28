@@ -667,6 +667,12 @@
                     if (!plotCard.classList.contains('hidden')) {
                         if (gddChartInstance) gddChartInstance.resize();
                     }
+                    // Mobile-only: scroll to results after calculation
+                    try {
+                        if (window.matchMedia && window.matchMedia('(max-width: 1023px)').matches) {
+                            resultContainer?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    } catch (e) {}
 
                 } catch (error) {
                     console.error("Calculation Error:", error);
