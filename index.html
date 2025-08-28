@@ -34,12 +34,16 @@
         }
         .spinner {
             border-top-color: #3498db;
-            animation: spin 1s linear infinite;
+            border-right-color: transparent;
+            border-bottom-color: transparent;
+            border-left-color: transparent;
+            border-style: solid;
+            animation: spin 0.8s linear infinite;
+            will-change: transform;
         }
         @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
     </style>
     <meta name="description" content="Estimate your next mow date using Modified Growing Degree Days (MGDD) with historical and forecast weather data.">
@@ -148,7 +152,7 @@
                         <p id="mowsPerYear" class="text-3xl font-bold text-green-600"></p>
                     </div>
                     <div id="loading-spinner" class="hidden flex justify-center items-center py-10">
-                        <div class="spinner w-12 h-12 rounded-full border-4 border-gray-200"></div>
+                        <div class="w-12 h-12 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"></div>
                     </div>
                      <div id="initial-message" class="text-center text-gray-500 py-10">
                         <p>Fill out the parameters and click calculate to see your estimated next mow date.</p>
@@ -183,6 +187,10 @@
                     <div class="flex items-center justify-between mb-2">
                         <h2 class="text-xl font-semibold text-gray-700">Climatology: Days Until Next Mow by Last Mow Date</h2>
                         <button id="maximizeClimoBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Maximize</button>
+                    </div>
+                    <div id="climo-loading-spinner" class="hidden flex justify-center items-center py-10">
+                        <div class="w-12 h-12 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"></div>
+                        <span class="ml-3 text-gray-600">Calculating climatology...</span>
                     </div>
                     <div id="climo-chart-container" style="height: 420px;">
                         <canvas id="climoChart"></canvas>
@@ -392,6 +400,12 @@
             const climoInitialMessage = document.getElementById('climo-initial-message');
             const climoResultContainer = document.getElementById('climo-result-container');
             const mowsPerYearEl = document.getElementById('mowsPerYear');
+            const climoLoadingSpinner = document.getElementById('climo-loading-spinner');
+
+            // Allow UI to paint (e.g., spinners) before heavy work
+            function waitForNextFrame() {
+                return new Promise(function(resolve){ requestAnimationFrame(resolve); });
+            }
 
             // --- CHART INSTANCE ---
             let gddChartInstance = null;
@@ -419,6 +433,7 @@
                 climoCard.classList.add('hidden');
                 showPlotView();
                 if (climoResultContainer) climoResultContainer.classList.add('hidden');
+                if (climoLoadingSpinner) climoLoadingSpinner.classList.add('hidden');
             }
             function setModeClimo() {
                 appMode = 'climo';
@@ -434,6 +449,7 @@
                 climoCard.classList.remove('hidden');
                 resultContainer.classList.add('hidden');
                 if (climoResultContainer) climoResultContainer.classList.add('hidden');
+                if (climoLoadingSpinner) climoLoadingSpinner.classList.add('hidden');
             }
             modeRealtimeBtn.addEventListener('click', setModeRealtime);
             modeClimoBtn.addEventListener('click', setModeClimo);
@@ -536,11 +552,19 @@
                 resultContainer.classList.add('hidden');
                 initialMessage.classList.add('hidden');
                 loadingSpinner.classList.add('hidden');
+                if (climoLoadingSpinner) climoLoadingSpinner.classList.add('hidden');
                 if (climoResultContainer) climoResultContainer.classList.add('hidden');
             }
 
             function showLoading() {
-                loadingSpinner.classList.remove('hidden');
+                // Show appropriate spinner based on mode
+                if (appMode === 'climo') {
+                    if (climoLoadingSpinner) climoLoadingSpinner.classList.remove('hidden');
+                    loadingSpinner.classList.add('hidden');
+                } else {
+                    loadingSpinner.classList.remove('hidden');
+                    if (climoLoadingSpinner) climoLoadingSpinner.classList.add('hidden');
+                }
                 resultContainer.classList.add('hidden');
                 initialMessage.classList.add('hidden');
                 errorMessage.classList.add('hidden');
@@ -667,6 +691,12 @@
                     if (!plotCard.classList.contains('hidden')) {
                         if (gddChartInstance) gddChartInstance.resize();
                     }
+                    // Mobile-only: scroll to results after calculation
+                    try {
+                        if (window.matchMedia && window.matchMedia('(max-width: 1023px)').matches) {
+                            resultContainer?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    } catch (e) {}
 
                 } catch (error) {
                     console.error("Calculation Error:", error);
@@ -887,6 +917,12 @@
                     return;
                 }
                 showLoading();
+                // Hide charts and messages while loading
+                if (climoInitialMessage) climoInitialMessage.classList.add('hidden');
+                const climoChartContainer = document.getElementById('climo-chart-container');
+                if (climoChartContainer) climoChartContainer.classList.add('opacity-50');
+                // Give the browser a frame to render the spinner
+                await waitForNextFrame();
                 if (climoInitialMessage) climoInitialMessage.classList.add('hidden');
                 const lat = parseFloat(latInput.value);
                 const lon = parseFloat(lonInput.value);
@@ -902,21 +938,26 @@
                     const sumMin = new Array(366).fill(0); // index by DOY
                     const sumMax = new Array(366).fill(0);
                     const count = new Array(366).fill(0);
-                    normalsData.daily.time.forEach(function(dateStr, i) {
+                    for (let i = 0; i < normalsData.daily.time.length; i++) {
+                        const dateStr = normalsData.daily.time[i];
                         const d = new Date(dateStr + 'T00:00:00');
                         const m = d.getMonth();
                         const day = d.getDate();
                         // Skip Feb 29 to keep 365-day climatology
-                        if (m === 1 && day === 29) return;
-                        const doy = getDoy(d); // 1..366 (but 60 skipped on leap years)
-                        const tmin = normalsData.daily.temperature_2m_min[i];
-                        const tmax = normalsData.daily.temperature_2m_max[i];
-                        if (Number.isFinite(tmin) && Number.isFinite(tmax)) {
-                            sumMin[doy] += tmin;
-                            sumMax[doy] += tmax;
-                            count[doy] += 1;
+                        if (!(m === 1 && day === 29)) {
+                            const doy = getDoy(d); // 1..366 (but 60 skipped on leap years)
+                            const tmin = normalsData.daily.temperature_2m_min[i];
+                            const tmax = normalsData.daily.temperature_2m_max[i];
+                            if (Number.isFinite(tmin) && Number.isFinite(tmax)) {
+                                sumMin[doy] += tmin;
+                                sumMax[doy] += tmax;
+                                count[doy] += 1;
+                            }
                         }
-                    });
+                        if (i % 1000 === 0) {
+                            await waitForNextFrame();
+                        }
+                    }
 
                     // Build 1..365 arrays (skip index 0)
                     const avgMin = [];
@@ -956,6 +997,9 @@
                         } else {
                             daysToTarget[start] = null; // target not reached within a year
                         }
+                        if (start % 30 === 0) {
+                            await waitForNextFrame();
+                        }
                     }
 
                     // Labels as month/day using a non-leap reference year (e.g., 2021)
@@ -988,8 +1032,12 @@
                     const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                     const monthMedians = monthBuckets.map(median);
                     renderClimoMonthlyChart(monthLabels, monthMedians);
+                    // Hide climo spinner, ensure errors hidden
+                    if (climoLoadingSpinner) climoLoadingSpinner.classList.add('hidden');
                     loadingSpinner.classList.add('hidden');
                     errorMessage.classList.add('hidden');
+                    const climoChartContainer2 = document.getElementById('climo-chart-container');
+                    if (climoChartContainer2) climoChartContainer2.classList.remove('opacity-50');
                     // Compute and display expected mows per year
                     const annualGdd = dailyGdd.reduce(function(sum, v){ return sum + v; }, 0);
                     const expectedMows = annualGdd / targetGDD;
