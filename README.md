@@ -37,10 +37,17 @@ python -m http.server 8000
 4. Click "Estimate Next Mow Date".
 
 The app will:
-- Pull historical daily min/max temperatures from ACIS PRISM.
-- Pull a 15-day forecast from Open-Meteo GFS.
-- Compute MGDD accumulation since last mowing and estimate when the target is reached.
-- Display a chart and daily breakdown.
+- Pull historical daily min/max temperatures and precipitation from ACIS PRISM.
+- Pull a 15-day forecast (including precipitation) from Open-Meteo GFS.
+- Compute MGDD accumulation since last mowing, adjusted for recent precipitation, and estimate when the target is reached.
+- Display a chart and daily breakdown with a Rain column showing daily precipitation.
+
+### Precipitation Adjustment
+
+Daily MGDD contributions are scaled based on a rolling 7-day precipitation total compared to the grass type's optimal water need. When recent rainfall is below optimal, growth contributions are reduced (down to 50%). A moisture status indicator shows current conditions after calculation.
+
+- **Irrigated toggle**: Enable this to bypass precipitation adjustments if your lawn is irrigated.
+- **Climatology mode** does not apply precipitation scaling (30-year averages already reflect typical precipitation).
 
 ### Notes
 
