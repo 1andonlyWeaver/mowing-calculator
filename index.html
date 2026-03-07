@@ -285,7 +285,7 @@
 
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 mb-1">Growing Season Detection</h3>
-                    <p>The tool automatically detects when grass breaks dormancy in spring using thermal accumulation (T-Sum 200) and day length thresholds, preventing false mowing recommendations during winter warm spells.</p>
+                    <p>The tool automatically detects when grass breaks dormancy in spring using the PACE Turf Growth Potential model (species-specific temperature response), preventing false mowing recommendations during winter warm spells.</p>
                 </section>
 
                 <section>
@@ -758,7 +758,7 @@
                 const lastMowed = lastMowedDateInput.value;
                 
                 try {
-                    // Fetch from Jan 1 of the earlier of lastMowed's year or current year for T-Sum
+                    // Fetch from Jan 1 of the earlier of lastMowed's year or current year for growing season detection
                     const lastMowedYear = parseInt(lastMowed.slice(0, 4));
                     const todayYear = parseInt(getYesterdayString().slice(0, 4));
                     const acisStart = Math.min(lastMowedYear, todayYear) + '-01-01';
@@ -771,21 +771,19 @@
                          throw new Error("Weather data could not be retrieved. Please try again.");
                     }
 
-                    // --- GROWING SEASON GATE ---
-                    // T-Sum should start from Jan 1 of the current year (the year we're accumulating into)
+                    // --- GROWING SEASON GATE (Growth Potential model) ---
                     const grassType = grassTypeSelect ? grassTypeSelect.value : 'custom';
                     const currentYear = getYesterdayString().slice(0, 4);
                     const jan1Current = currentYear + '-01-01';
                     const jan1Idx = historicalData.daily.time.indexOf(jan1Current);
-                    const histTimes = jan1Idx >= 0 ? historicalData.daily.time.slice(jan1Idx) : historicalData.daily.time;
-                    const histMins = jan1Idx >= 0 ? historicalData.daily.temperature_2m_min.slice(jan1Idx) : historicalData.daily.temperature_2m_min;
-                    const histMaxs = jan1Idx >= 0 ? historicalData.daily.temperature_2m_max.slice(jan1Idx) : historicalData.daily.temperature_2m_max;
-                    // Combine historical + forecast for T-Sum (in case 200 is reached in forecast period)
-                    const tSumTimes = histTimes.concat(forecastData.daily.time);
-                    const tSumMins = histMins.concat(forecastData.daily.temperature_2m_min);
-                    const tSumMaxs = histMaxs.concat(forecastData.daily.temperature_2m_max);
-                    const tSumDate = calculateTSum(tSumTimes, tSumMins, tSumMaxs);
-                    const growingSeasonStart = findGrowingSeasonStart(tSumDate, lat, grassType);
+                    const seasonTimes = jan1Idx >= 0 ? historicalData.daily.time.slice(jan1Idx) : historicalData.daily.time;
+                    const seasonMins = jan1Idx >= 0 ? historicalData.daily.temperature_2m_min.slice(jan1Idx) : historicalData.daily.temperature_2m_min;
+                    const seasonMaxs = jan1Idx >= 0 ? historicalData.daily.temperature_2m_max.slice(jan1Idx) : historicalData.daily.temperature_2m_max;
+                    // Combine historical + forecast (in case growing season starts in forecast period)
+                    const combinedTimes = seasonTimes.concat(forecastData.daily.time);
+                    const combinedMins = seasonMins.concat(forecastData.daily.temperature_2m_min);
+                    const combinedMaxs = seasonMaxs.concat(forecastData.daily.temperature_2m_max);
+                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, grassType);
                     const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
                     let effectiveStart;
                     if (!growingSeasonStart) {
@@ -800,14 +798,13 @@
                     const growingSeasonInfoEl = document.getElementById('growingSeasonInfo');
                     if (growingSeasonInfoEl) {
                         if (!growingSeasonStart) {
-                            growingSeasonInfoEl.textContent = 'Growing season has not started yet (T-Sum 200 not reached)';
+                            growingSeasonInfoEl.textContent = 'Growing season has not started yet (sustained growth potential not reached)';
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else if (effectiveStart > lastMowedDateObj) {
                             const gsDate = new Date(growingSeasonStart + 'T00:00:00');
-                            const minDayLen = getMinDayLength(grassType);
                             growingSeasonInfoEl.textContent = 'Growing season start: ' +
                                 gsDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
-                                ' (T-Sum 200 reached + ' + minDayLen + 'h daylight)';
+                                ' (sustained growth potential reached)';
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else {
                             growingSeasonInfoEl.classList.add('hidden');
@@ -833,6 +830,8 @@
                     const precipWindow = []; // rolling 7-day window (inches)
                     let latestScaleFactor = 1.0;
                     let latestPrecip7day = 0;
+                    let dormancyEndIndex = -1;
+                    const showDormancy = !growingSeasonStart || new Date(growingSeasonStart + 'T00:00:00') > lastMowedDateObj;
 
                     // Build precip window from all historical data (soil moisture predates the mow)
                     historicalData.daily.time.forEach((date, i) => {
@@ -841,6 +840,14 @@
                         if (precipWindow.length > 7) precipWindow.shift();
 
                         const currentDate = new Date(date + 'T00:00:00');
+
+                        // Dormancy period — after last mow but before growing season
+                        if (showDormancy && currentDate > lastMowedDateObj && currentDate < effectiveStart) {
+                            chartLabels.push(currentDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+                            observedValues.push(0);
+                            dormancyEndIndex = chartLabels.length - 1;
+                        }
+
                         if (currentDate > lastMowedDateObj && currentDate >= effectiveStart) {
                             const rawGDD = calculateGDD(historicalData.daily.temperature_2m_min[i], historicalData.daily.temperature_2m_max[i], baseT, upperT);
                             const scaleFactor = irrigated ? 1.0 : getPrecipScaleFactor(precipWindow, optimalPrecip);
@@ -900,6 +907,9 @@
                         const displayDate = new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                         chartLabels.push(displayDate);
                         forecastValues.push(forecastAccumulation);
+                        if (showDormancy && forecastDate < effectiveStart) {
+                            dormancyEndIndex = chartLabels.length - 1;
+                        }
 
                         const weatherCode = forecastData.daily.weathercode ? forecastData.daily.weathercode[i] : null;
                         const weatherInfo = getWeatherInfo(weatherCode);
@@ -941,7 +951,7 @@
                         if (daysUntilEl) daysUntilEl.textContent = 'N/A';
                     }
 
-                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD, lowerTarget, upperTarget);
+                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD, lowerTarget, upperTarget, dormancyEndIndex);
                     showResults();
 
                     // --- Moisture Status Display ---
@@ -1075,7 +1085,7 @@
                 }
             }
             
-            function renderGddChart(labels, observedData, forecastData, target, lowerTarget, upperTarget) {
+            function renderGddChart(labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex) {
                 if (gddChartInstance) {
                     gddChartInstance.destroy();
                 }
@@ -1109,6 +1119,23 @@
                             position: 'start',
                             color: 'rgba(75, 192, 192, 0.8)',
                             font: { size: 10 }
+                        }
+                    };
+                }
+                if (dormancyEndIndex != null && dormancyEndIndex >= 0) {
+                    annotations.dormancyBox = {
+                        type: 'box',
+                        xMin: 0,
+                        xMax: dormancyEndIndex,
+                        backgroundColor: 'rgba(156, 163, 175, 0.15)',
+                        borderColor: 'rgba(156, 163, 175, 0.3)',
+                        borderWidth: 1,
+                        label: {
+                            content: 'Dormant',
+                            display: true,
+                            position: { x: 'center', y: 'start' },
+                            color: 'rgba(107, 114, 128, 0.8)',
+                            font: { size: 11, style: 'italic' }
                         }
                     };
                 }
@@ -1420,48 +1447,32 @@
                 return Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1; // 1..366
             }
 
-            function calculateDayLength(lat, dayOfYear) {
-                const latRad = lat * Math.PI / 180;
-                const declination = -23.44 * Math.cos(2 * Math.PI / 365 * (dayOfYear + 10));
-                const decRad = declination * Math.PI / 180;
-                const cosHourAngle = -Math.tan(latRad) * Math.tan(decRad);
-                if (cosHourAngle < -1) return 24; // midnight sun
-                if (cosHourAngle > 1) return 0;   // polar night
-                const hourAngle = Math.acos(cosHourAngle);
-                return (2 * hourAngle) / (Math.PI / 12); // convert radians to hours: 2*w / (pi/12)
+            function calculateGrowthPotential(meanTempF, grassType) {
+                const meanC = (meanTempF - 32) * 5 / 9;
+                const isWarmSeason = (grassType === 'bermuda_grass' || grassType === 'zoysia_grass');
+                const tOpt = isWarmSeason ? 31.0 : 20.0;
+                const variance = isWarmSeason ? 7.0 : 5.5;
+                return Math.exp(-0.5 * Math.pow((meanC - tOpt) / variance, 2));
             }
 
-            function calculateTSum(times, mins, maxs) {
-                let sum = 0;
-                let tSumDate = null;
+            function findGrowingSeasonStart(times, mins, maxs, grassType) {
+                const GP_THRESHOLD = 0.10;
+                const SUSTAINED_DAYS = 7;
+                let consecutiveDays = 0;
                 for (let i = 0; i < times.length; i++) {
-                    if (!Number.isFinite(mins[i]) || !Number.isFinite(maxs[i])) continue;
-                    const avgC = Math.max(0, ((mins[i] + maxs[i]) / 2 - 32) * 5 / 9);
-                    sum += avgC;
-                    if (sum >= 200) {
-                        tSumDate = times[i];
-                        break;
+                    if (!Number.isFinite(mins[i]) || !Number.isFinite(maxs[i])) {
+                        consecutiveDays = 0;
+                        continue;
                     }
-                }
-                return tSumDate;
-            }
-
-            function getMinDayLength(grassType) {
-                if (grassType === 'bermuda_grass' || grassType === 'zoysia_grass') return 12;
-                return 10; // cool-season default
-            }
-
-            function findGrowingSeasonStart(tSumDate, lat, grassType) {
-                if (!tSumDate) return null;
-                const minDayLen = getMinDayLength(grassType);
-                const startDate = new Date(tSumDate + 'T00:00:00');
-                // Check up to 120 days forward from tSumDate
-                for (let d = 0; d < 120; d++) {
-                    const checkDate = new Date(startDate);
-                    checkDate.setDate(checkDate.getDate() + d);
-                    const doy = getDoy(checkDate);
-                    if (calculateDayLength(lat, doy) >= minDayLen) {
-                        return checkDate.toISOString().slice(0, 10);
+                    const meanF = (mins[i] + maxs[i]) / 2;
+                    const gp = calculateGrowthPotential(meanF, grassType);
+                    if (gp >= GP_THRESHOLD) {
+                        consecutiveDays++;
+                        if (consecutiveDays >= SUSTAINED_DAYS) {
+                            return times[i - SUSTAINED_DAYS + 1];
+                        }
+                    } else {
+                        consecutiveDays = 0;
                     }
                 }
                 return null;
@@ -1550,31 +1561,9 @@
                     const cum = new Array(twoYear.length + 1).fill(0);
                     for (let i = 0; i < twoYear.length; i++) cum[i + 1] = cum[i] + twoYear[i];
 
-                    // Determine photoperiod gate for climatology
-                    const grassType = grassTypeSelect ? grassTypeSelect.value : 'custom';
-                    const minDayLen = getMinDayLength(grassType);
-
                     const daysToTarget = new Array(365).fill(null);
                     for (let start = 0; start < 365; start++) {
-                        // Apply photoperiod gate: advance start if day length is insufficient
                         let effectiveIdx = start;
-                        const doy = start + 1; // DOY is 1-based
-                        if (calculateDayLength(lat, doy) < minDayLen) {
-                            // Find first DOY with sufficient daylight (search forward up to 365 days)
-                            let found = false;
-                            for (let offset = 1; offset < 365; offset++) {
-                                const checkDoy = ((start + offset) % 365) + 1;
-                                if (calculateDayLength(lat, checkDoy) >= minDayLen) {
-                                    effectiveIdx = start + offset;
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (!found) {
-                                daysToTarget[start] = null;
-                                continue;
-                            }
-                        }
                         const startCum = cum[effectiveIdx];
                         // linear search for first index where cum[j] - startCum >= target
                         let j = effectiveIdx + 1;
