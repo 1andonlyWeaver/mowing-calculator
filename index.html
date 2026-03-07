@@ -141,11 +141,15 @@
                     <div id="result-container" class="text-center space-y-4 hidden">
                         <p class="text-gray-600">Estimated Next Mow Date:</p>
                         <p id="resultDate" class="text-3xl font-bold text-green-600"></p>
+                        <p id="mowWindow" class="text-sm text-gray-600 hidden"></p>
+                        <div id="weekendSuggestion" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800"></div>
                         <p class="text-gray-600">Days until next mow:</p>
                         <p id="daysUntil" class="text-2xl font-semibold text-gray-800"></p>
                         <hr class="my-4">
                         <p class="text-gray-600">Current MGDD since last mow:</p>
                         <p id="currentGDD" class="text-2xl font-semibold text-gray-800"></p>
+                        <hr class="my-4">
+                        <button id="logMowBtn" type="button" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-green-100 text-green-800 border border-green-300 rounded-md hover:bg-green-200">Log Today as Mowed</button>
                     </div>
                     <div id="climo-result-container" class="text-center space-y-4 hidden">
                         <p class="text-gray-600">Expected mows per year:</p>
@@ -158,6 +162,18 @@
                         <p>Fill out the parameters and click calculate to see your estimated next mow date.</p>
                     </div>
                     <div id="error-message" class="hidden text-center text-red-500 font-medium py-10"></div>
+                </div>
+                <div id="weather-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Weather Around Mow Date</h2>
+                    <div id="weatherAlert" class="hidden mb-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800"></div>
+                    <div id="weatherStrip" class="grid grid-cols-5 gap-2 text-center text-sm"></div>
+                </div>
+                <div id="mow-history-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-lg font-semibold text-gray-700">Mow History</h2>
+                        <button id="clearHistoryBtn" type="button" class="text-xs text-red-500 hover:text-red-700">Clear history</button>
+                    </div>
+                    <div id="mowHistoryList" class="space-y-1 text-sm max-h-40 overflow-y-auto"></div>
                 </div>
                 <div id="view-toggle-card" class="bg-white p-3 rounded-xl shadow-md">
                     <div class="flex justify-center">
@@ -450,6 +466,8 @@
                 resultContainer.classList.add('hidden');
                 if (climoResultContainer) climoResultContainer.classList.add('hidden');
                 if (climoLoadingSpinner) climoLoadingSpinner.classList.add('hidden');
+                const wc = document.getElementById('weather-card');
+                if (wc) wc.classList.add('hidden');
             }
             modeRealtimeBtn.addEventListener('click', setModeRealtime);
             modeClimoBtn.addEventListener('click', setModeClimo);
@@ -516,6 +534,43 @@
             const formattedToday = today.toISOString().split('T')[0];
             lastMowedDateInput.value = formattedToday;
             lastMowedDateInput.max = formattedToday;
+
+            // --- LOAD SAVED SETTINGS ---
+            loadSettings();
+            // Ensure lastMowedDate max constraint still applies
+            lastMowedDateInput.max = formattedToday;
+
+            // --- SAVE ON INPUT CHANGES ---
+            [latInput, lonInput, baseTempInput, upperTempInput, targetGddInput, lastMowedDateInput].forEach(function(el) {
+                el.addEventListener('input', saveSettingsDebounced);
+            });
+            if (grassTypeSelect) {
+                grassTypeSelect.addEventListener('change', saveSettingsDebounced);
+            }
+
+            // --- LOG MOW BUTTON ---
+            const logMowBtn = document.getElementById('logMowBtn');
+            if (logMowBtn) {
+                logMowBtn.addEventListener('click', function() {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    saveMowEntry(todayStr);
+                    lastMowedDateInput.value = todayStr;
+                    saveSettings();
+                    renderMowHistory();
+                });
+            }
+
+            // --- CLEAR HISTORY BUTTON ---
+            const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+            if (clearHistoryBtn) {
+                clearHistoryBtn.addEventListener('click', function() {
+                    localStorage.removeItem('mgdd_mow_history');
+                    renderMowHistory();
+                });
+            }
+
+            // --- RENDER INITIAL MOW HISTORY ---
+            renderMowHistory();
 
             // --- CORE LOGIC ---
             calculateBtn.addEventListener('click', function() {
@@ -618,6 +673,10 @@
                     const observedValues = [];
                     const forecastValues = [];
                     let crossingDateHistorical = null;
+                    const lowerTarget = targetGDD * 0.90;
+                    const upperTarget = targetGDD * 1.10;
+                    let windowStartDate = null;
+                    let windowEndDate = null;
 
                     // Process historical data
                     const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
@@ -628,6 +687,12 @@
                             accumulatedGDD += dailyGDD;
                             chartLabels.push(new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
                             observedValues.push(accumulatedGDD);
+                            if (!windowStartDate && accumulatedGDD >= lowerTarget) {
+                                windowStartDate = date;
+                            }
+                            if (!windowEndDate && accumulatedGDD >= upperTarget) {
+                                windowEndDate = date;
+                            }
                             if (!crossingDateHistorical && accumulatedGDD >= targetGDD) {
                                 crossingDateHistorical = date;
                             }
@@ -639,7 +704,7 @@
                     // Process forecast data
                     let forecastAccumulation = accumulatedGDD;
                     let estimatedMowDate = crossingDateHistorical;
-                    let forecastHTML = '<div class="font-semibold grid grid-cols-4 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Daily MGDD</div><div>Total</div></div>';
+                    let forecastHTML = '<div class="font-semibold grid grid-cols-5 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
 
                     // Pad forecast array to align with observed data on the chart
                     const padLength = Math.max(0, observedValues.length - 1);
@@ -658,15 +723,26 @@
                         chartLabels.push(displayDate);
                         forecastValues.push(forecastAccumulation);
                         
+                        const weatherCode = forecastData.daily.weathercode ? forecastData.daily.weathercode[i] : null;
+                        const weatherInfo = getWeatherInfo(weatherCode);
+                        const windKmh = forecastData.daily.windspeed_10m_max ? forecastData.daily.windspeed_10m_max[i] : null;
+
                         forecastHTML += `
-                            <div class="grid grid-cols-4 gap-2 py-1 ${forecastAccumulation >= targetGDD && !estimatedMowDate ? 'bg-green-100 rounded font-bold' : ''}">
+                            <div class="grid grid-cols-5 gap-2 py-1 ${forecastAccumulation >= targetGDD && !estimatedMowDate ? 'bg-green-100 rounded font-bold' : ''}">
                                 <div>${displayDate}</div>
                                 <div>${Math.round(forecastData.daily.temperature_2m_min[i])}°/${Math.round(forecastData.daily.temperature_2m_max[i])}°</div>
                                 <div>${dailyGDD.toFixed(1)}</div>
                                 <div>${forecastAccumulation.toFixed(1)}</div>
+                                <div>${weatherInfo.emoji}</div>
                             </div>
                         `;
 
+                        if (!windowStartDate && forecastAccumulation >= lowerTarget) {
+                            windowStartDate = date;
+                        }
+                        if (!windowEndDate && forecastAccumulation >= upperTarget) {
+                            windowEndDate = date;
+                        }
                         if (forecastAccumulation >= targetGDD && !estimatedMowDate) {
                             estimatedMowDate = date;
                         }
@@ -686,8 +762,99 @@
                         if (daysUntilEl) daysUntilEl.textContent = 'N/A';
                     }
 
-                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD);
+                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD, lowerTarget, upperTarget);
                     showResults();
+
+                    // --- Mow Window Display ---
+                    const mowWindowEl = document.getElementById('mowWindow');
+                    if (mowWindowEl) {
+                        if (windowStartDate && windowEndDate) {
+                            const wsDate = new Date(windowStartDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            const weDate = new Date(windowEndDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            mowWindowEl.textContent = `Mow window: ${wsDate} – ${weDate}`;
+                            mowWindowEl.classList.remove('hidden');
+                        } else if (windowStartDate) {
+                            const wsDate = new Date(windowStartDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            mowWindowEl.textContent = `Mow window starts: ${wsDate}`;
+                            mowWindowEl.classList.remove('hidden');
+                        } else {
+                            mowWindowEl.classList.add('hidden');
+                        }
+                    }
+
+                    // --- Weekend Suggestion ---
+                    const weekendEl = document.getElementById('weekendSuggestion');
+                    if (weekendEl && estimatedMowDate) {
+                        const mowDateObj = new Date(estimatedMowDate + 'T00:00:00');
+                        const dayOfWeek = mowDateObj.getDay();
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                            const nearestWeekend = getNearestWeekend(estimatedMowDate);
+                            const weekendLabel = nearestWeekend.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+                            let inWindow = false;
+                            if (windowStartDate && windowEndDate) {
+                                const ws = new Date(windowStartDate + 'T00:00:00');
+                                const we = new Date(windowEndDate + 'T00:00:00');
+                                inWindow = nearestWeekend >= ws && nearestWeekend <= we;
+                            }
+                            const statusText = inWindow ? '(within mow window)' : '(outside optimal window)';
+                            weekendEl.textContent = `Nearest weekend: ${weekendLabel} ${statusText}`;
+                            weekendEl.classList.remove('hidden');
+                        } else {
+                            weekendEl.classList.add('hidden');
+                        }
+                    } else if (weekendEl) {
+                        weekendEl.classList.add('hidden');
+                    }
+
+                    // --- Weather Context ---
+                    const weatherCard = document.getElementById('weather-card');
+                    const weatherStrip = document.getElementById('weatherStrip');
+                    const weatherAlertEl = document.getElementById('weatherAlert');
+                    if (weatherCard && weatherStrip && estimatedMowDate && forecastData.daily.weathercode) {
+                        const forecastTimes = forecastData.daily.time;
+                        const mowIdx = forecastTimes.indexOf(estimatedMowDate);
+                        if (mowIdx !== -1) {
+                            const startIdx = Math.max(0, mowIdx - 2);
+                            const endIdx = Math.min(forecastTimes.length - 1, mowIdx + 2);
+                            let stripHTML = '';
+                            const alerts = [];
+                            for (let wi = startIdx; wi <= endIdx; wi++) {
+                                const wDate = new Date(forecastTimes[wi] + 'T00:00:00');
+                                const wLabel = wDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                                const wInfo = getWeatherInfo(forecastData.daily.weathercode[wi]);
+                                const precip = forecastData.daily.precipitation_sum ? forecastData.daily.precipitation_sum[wi] : 0;
+                                const windKmh = forecastData.daily.windspeed_10m_max ? forecastData.daily.windspeed_10m_max[wi] : 0;
+                                const windMph = (windKmh * 0.621371).toFixed(0);
+                                const isMowDay = wi === mowIdx;
+                                const ringClass = isMowDay ? 'ring-2 ring-green-500 bg-green-50' : 'bg-gray-50';
+                                stripHTML += `<div class="rounded-lg p-2 ${ringClass}">
+                                    <div class="font-medium text-xs">${wLabel}</div>
+                                    <div class="text-2xl my-1">${wInfo.emoji}</div>
+                                    <div class="text-xs text-gray-500">${wInfo.label}</div>
+                                    <div class="text-xs">${precip.toFixed(1)} mm</div>
+                                    <div class="text-xs">${windMph} mph</div>
+                                </div>`;
+                                if (isMowDay && precip > 0.5) alerts.push('Rain expected on mow day');
+                                if (!isMowDay && precip > 2) alerts.push(`Heavy rain on ${wLabel}`);
+                                if (isMowDay && windKmh > 25) alerts.push('High wind on mow day');
+                            }
+                            weatherStrip.innerHTML = stripHTML;
+                            if (alerts.length > 0) {
+                                weatherAlertEl.textContent = alerts.join(' | ');
+                                weatherAlertEl.classList.remove('hidden');
+                            } else {
+                                weatherAlertEl.classList.add('hidden');
+                            }
+                            weatherCard.classList.remove('hidden');
+                        } else {
+                            weatherCard.classList.add('hidden');
+                        }
+                    } else if (weatherCard) {
+                        weatherCard.classList.add('hidden');
+                    }
+
+                    saveSettings();
+
                     if (!plotCard.classList.contains('hidden')) {
                         if (gddChartInstance) gddChartInstance.resize();
                     }
@@ -704,9 +871,42 @@
                 }
             }
             
-            function renderGddChart(labels, observedData, forecastData, target) {
+            function renderGddChart(labels, observedData, forecastData, target, lowerTarget, upperTarget) {
                 if (gddChartInstance) {
                     gddChartInstance.destroy();
+                }
+                const annotations = {
+                    thresholdLine: {
+                        type: 'line',
+                        yMin: target,
+                        yMax: target,
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 2,
+                        borderDash: [10, 5],
+                        label: {
+                            content: `Target: ${target}`,
+                            enabled: true,
+                            position: 'end',
+                            backgroundColor: 'rgba(75, 192, 192, 0.8)'
+                        }
+                    }
+                };
+                if (lowerTarget != null && upperTarget != null) {
+                    annotations.mowWindowBox = {
+                        type: 'box',
+                        yMin: lowerTarget,
+                        yMax: upperTarget,
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        borderColor: 'rgba(75, 192, 192, 0.3)',
+                        borderWidth: 1,
+                        label: {
+                            content: 'Mow Window',
+                            display: true,
+                            position: 'start',
+                            color: 'rgba(75, 192, 192, 0.8)',
+                            font: { size: 10 }
+                        }
+                    };
                 }
                 const ctx = document.getElementById('gddChart').getContext('2d');
                 gddChartInstance = new Chart(ctx, {
@@ -736,24 +936,7 @@
                         plugins: {
                             title: { display: true, text: 'MGDD Accumulation Over Time' },
                             legend: { position: 'bottom' },
-                            annotation: {
-                                annotations: {
-                                    thresholdLine: {
-                                        type: 'line',
-                                        yMin: target,
-                                        yMax: target,
-                                        borderColor: 'rgb(75, 192, 192)',
-                                        borderWidth: 2,
-                                        borderDash: [10, 5],
-                                        label: {
-                                            content: `Target: ${target}`,
-                                            enabled: true,
-                                            position: 'end',
-                                            backgroundColor: 'rgba(75, 192, 192, 0.8)'
-                                        }
-                                    }
-                                }
-                            }
+                            annotation: { annotations }
                         },
                         scales: {
                             x: { title: { display: true, text: 'Date' } },
@@ -809,10 +992,133 @@
                 if (new Date(startDate) > new Date(endDate)) {
                     return { daily: { time: [], temperature_2m_min: [], temperature_2m_max: [] } };
                 }
-                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&start_date=${startDate}&end_date=${endDate}&timezone=auto&model=gfs`;
+                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max&temperature_unit=fahrenheit&start_date=${startDate}&end_date=${endDate}&timezone=auto&model=gfs`;
                 const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error(`Open-Meteo API error! status: ${response.status}`);
                 return await response.json();
+            }
+
+            // --- HELPER FUNCTIONS ---
+            function getNearestWeekend(dateStr) {
+                const d = new Date(dateStr + 'T00:00:00');
+                const dow = d.getDay();
+                // Find nearest Saturday or Sunday
+                const candidates = [];
+                // Previous Saturday
+                const prevSat = new Date(d); prevSat.setDate(d.getDate() - ((dow + 1) % 7));
+                candidates.push(prevSat);
+                // Next Saturday
+                const nextSat = new Date(d); nextSat.setDate(d.getDate() + (6 - dow));
+                candidates.push(nextSat);
+                // Previous Sunday
+                const prevSun = new Date(d); prevSun.setDate(d.getDate() - dow);
+                candidates.push(prevSun);
+                // Next Sunday
+                const nextSun = new Date(d); nextSun.setDate(d.getDate() + (7 - dow));
+                candidates.push(nextSun);
+
+                let best = candidates[0];
+                let bestDiff = Math.abs(candidates[0] - d);
+                for (let ci = 1; ci < candidates.length; ci++) {
+                    const diff = Math.abs(candidates[ci] - d);
+                    if (diff < bestDiff || (diff === bestDiff && candidates[ci] < best)) {
+                        best = candidates[ci];
+                        bestDiff = diff;
+                    }
+                }
+                return best;
+            }
+
+            function getWeatherInfo(code) {
+                if (code == null) return { emoji: '', label: '' };
+                if (code === 0) return { emoji: '\u2600\uFE0F', label: 'Clear' };
+                if (code <= 3) return { emoji: '\u26C5', label: 'Cloudy' };
+                if (code <= 49) return { emoji: '\uD83C\uDF2B\uFE0F', label: 'Fog' };
+                if (code <= 59) return { emoji: '\uD83C\uDF27\uFE0F', label: 'Drizzle' };
+                if (code <= 69) return { emoji: '\uD83C\uDF27\uFE0F', label: 'Rain' };
+                if (code <= 79) return { emoji: '\u2744\uFE0F', label: 'Snow' };
+                if (code <= 84) return { emoji: '\uD83C\uDF27\uFE0F', label: 'Showers' };
+                if (code <= 94) return { emoji: '\u2744\uFE0F', label: 'Snow' };
+                return { emoji: '\u26A1', label: 'Thunderstorm' };
+            }
+
+            // --- LOCALSTORAGE FUNCTIONS ---
+            let saveSettingsTimer = null;
+            function saveSettings() {
+                try {
+                    const settings = {
+                        lat: latInput.value,
+                        lon: lonInput.value,
+                        grassType: grassTypeSelect ? grassTypeSelect.value : 'custom',
+                        baseTemp: baseTempInput.value,
+                        upperTemp: upperTempInput.value,
+                        targetGDD: targetGddInput.value,
+                        lastMowedDate: lastMowedDateInput.value
+                    };
+                    localStorage.setItem('mgdd_user_settings', JSON.stringify(settings));
+                } catch (e) {}
+            }
+
+            function saveSettingsDebounced() {
+                clearTimeout(saveSettingsTimer);
+                saveSettingsTimer = setTimeout(saveSettings, 500);
+            }
+
+            function loadSettings() {
+                try {
+                    const raw = localStorage.getItem('mgdd_user_settings');
+                    if (!raw) return;
+                    const s = JSON.parse(raw);
+                    if (s.lat) latInput.value = s.lat;
+                    if (s.lon) lonInput.value = s.lon;
+                    if (s.grassType && grassTypeSelect) grassTypeSelect.value = s.grassType;
+                    if (s.baseTemp) baseTempInput.value = s.baseTemp;
+                    if (s.upperTemp) upperTempInput.value = s.upperTemp;
+                    if (s.targetGDD) targetGddInput.value = s.targetGDD;
+                    if (s.lastMowedDate) lastMowedDateInput.value = s.lastMowedDate;
+                    // Update map marker
+                    const lat = parseFloat(s.lat);
+                    const lon = parseFloat(s.lon);
+                    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                        const latlng = L.latLng(lat, lon);
+                        marker.setLatLng(latlng);
+                        map.setView(latlng, 10);
+                    }
+                } catch (e) {}
+            }
+
+            function saveMowEntry(date) {
+                try {
+                    const raw = localStorage.getItem('mgdd_mow_history');
+                    const history = raw ? JSON.parse(raw) : { entries: [] };
+                    // Avoid duplicates for same date
+                    if (!history.entries.some(function(e){ return e.date === date; })) {
+                        history.entries.push({ date: date, note: '' });
+                        history.entries.sort(function(a, b){ return b.date.localeCompare(a.date); });
+                        localStorage.setItem('mgdd_mow_history', JSON.stringify(history));
+                    }
+                } catch (e) {}
+            }
+
+            function renderMowHistory() {
+                const card = document.getElementById('mow-history-card');
+                const list = document.getElementById('mowHistoryList');
+                if (!card || !list) return;
+                try {
+                    const raw = localStorage.getItem('mgdd_mow_history');
+                    const history = raw ? JSON.parse(raw) : { entries: [] };
+                    if (history.entries.length === 0) {
+                        card.classList.add('hidden');
+                        return;
+                    }
+                    card.classList.remove('hidden');
+                    list.innerHTML = history.entries.map(function(e) {
+                        const d = new Date(e.date + 'T00:00:00');
+                        return '<div class="py-1 border-b border-gray-100">' + d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + '</div>';
+                    }).join('');
+                } catch (e) {
+                    card.classList.add('hidden');
+                }
             }
 
             // --- DATE HELPER FUNCTIONS ---
