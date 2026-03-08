@@ -584,7 +584,7 @@
 
             // --- GRASS TYPE PRESETS ---
             const grassPresets = {
-                kentucky_bluegrass: { base: 32, upper: 86, target: 250, optimalPrecip: 0.75 },
+                kentucky_bluegrass: { base: 40, upper: 86, target: 250, optimalPrecip: 0.75 },
                 bermuda_grass: { base: 50, upper: 86, target: 200, optimalPrecip: 0.75 },
                 zoysia_grass: { base: 50, upper: 86, target: 225, optimalPrecip: 0.50 }
             };
@@ -783,7 +783,7 @@
                     const combinedTimes = seasonTimes.concat(forecastData.daily.time);
                     const combinedMins = seasonMins.concat(forecastData.daily.temperature_2m_min);
                     const combinedMaxs = seasonMaxs.concat(forecastData.daily.temperature_2m_max);
-                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, grassType);
+                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, grassType, baseT);
                     const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
                     let effectiveStart;
                     if (!growingSeasonStart) {
@@ -802,9 +802,11 @@
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else if (effectiveStart > lastMowedDateObj) {
                             const gsDate = new Date(growingSeasonStart + 'T00:00:00');
+                            const yesterday = new Date(getYesterdayString() + 'T00:00:00');
+                            const isForecast = gsDate > yesterday;
                             growingSeasonInfoEl.textContent = 'Growing season start: ' +
                                 gsDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
-                                ' (sustained growth potential reached)';
+                                (isForecast ? ' (forecasted from weather outlook)' : ' (sustained growth potential reached)');
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else {
                             growingSeasonInfoEl.classList.add('hidden');
@@ -1447,15 +1449,23 @@
                 return Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1; // 1..366
             }
 
-            function calculateGrowthPotential(meanTempF, grassType) {
+            function calculateGrowthPotential(meanTempF, grassType, baseTemp) {
                 const meanC = (meanTempF - 32) * 5 / 9;
-                const isWarmSeason = (grassType === 'bermuda_grass' || grassType === 'zoysia_grass');
+                let isWarmSeason;
+                if (grassType === 'bermuda_grass' || grassType === 'zoysia_grass') {
+                    isWarmSeason = true;
+                } else if (grassType === 'custom') {
+                    // Infer from base temp: warm-season grasses use base >= 50°F
+                    isWarmSeason = (baseTemp !== undefined && baseTemp >= 50);
+                } else {
+                    isWarmSeason = false;
+                }
                 const tOpt = isWarmSeason ? 31.0 : 20.0;
                 const variance = isWarmSeason ? 7.0 : 5.5;
                 return Math.exp(-0.5 * Math.pow((meanC - tOpt) / variance, 2));
             }
 
-            function findGrowingSeasonStart(times, mins, maxs, grassType) {
+            function findGrowingSeasonStart(times, mins, maxs, grassType, baseTemp) {
                 const GP_THRESHOLD = 0.10;
                 const SUSTAINED_DAYS = 7;
                 let consecutiveDays = 0;
@@ -1465,7 +1475,7 @@
                         continue;
                     }
                     const meanF = (mins[i] + maxs[i]) / 2;
-                    const gp = calculateGrowthPotential(meanF, grassType);
+                    const gp = calculateGrowthPotential(meanF, grassType, baseTemp);
                     if (gp >= GP_THRESHOLD) {
                         consecutiveDays++;
                         if (consecutiveDays >= SUSTAINED_DAYS) {
