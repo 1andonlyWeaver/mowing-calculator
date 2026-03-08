@@ -56,6 +56,9 @@
         <header class="text-center mb-8">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Next Mow Date Estimator</h1>
             <p class="text-gray-600 mt-2">Using Modified Growing Degree Days (MGDD) to predict lawn growth.</p>
+            <button id="openAboutBtn" type="button" class="mt-2 text-sm text-green-600 hover:text-green-800 underline">
+                About this tool
+            </button>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -103,6 +106,11 @@
                                 <option value="zoysia_grass">Zoysia Grass</option>
                             </select>
                             <p class="mt-1 text-xs text-gray-500">Selecting a grass type will fill Base, Upper, and Target. You can still edit them.</p>
+                            <label class="mt-2 inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="irrigatedToggle" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                                <span class="text-sm text-gray-700">Lawn is irrigated</span>
+                                <span class="text-xs text-gray-400">(skip precipitation adjustments)</span>
+                            </label>
                         </div>
 
                         <!-- MGDD Thresholds -->
@@ -141,11 +149,20 @@
                     <div id="result-container" class="text-center space-y-4 hidden">
                         <p class="text-gray-600">Estimated Next Mow Date:</p>
                         <p id="resultDate" class="text-3xl font-bold text-green-600"></p>
+                        <p id="mowWindow" class="text-sm text-gray-600 hidden"></p>
+                        <p id="growingSeasonInfo" class="text-sm text-gray-600 hidden"></p>
+                        <div id="weekendSuggestion" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800"></div>
                         <p class="text-gray-600">Days until next mow:</p>
                         <p id="daysUntil" class="text-2xl font-semibold text-gray-800"></p>
                         <hr class="my-4">
                         <p class="text-gray-600">Current MGDD since last mow:</p>
                         <p id="currentGDD" class="text-2xl font-semibold text-gray-800"></p>
+                        <div id="moistureStatus" class="hidden rounded-lg p-3 text-sm mt-2">
+                            <p id="moistureLabel" class="font-medium"></p>
+                            <p id="moistureDetail" class="text-xs mt-1 opacity-80"></p>
+                        </div>
+                        <hr class="my-4">
+                        <button id="logMowBtn" type="button" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-green-100 text-green-800 border border-green-300 rounded-md hover:bg-green-200">Log Today as Mowed</button>
                     </div>
                     <div id="climo-result-container" class="text-center space-y-4 hidden">
                         <p class="text-gray-600">Expected mows per year:</p>
@@ -158,6 +175,18 @@
                         <p>Fill out the parameters and click calculate to see your estimated next mow date.</p>
                     </div>
                     <div id="error-message" class="hidden text-center text-red-500 font-medium py-10"></div>
+                </div>
+                <div id="weather-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Weather Around Mow Date</h2>
+                    <div id="weatherAlert" class="hidden mb-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800"></div>
+                    <div id="weatherStrip" class="grid grid-cols-5 gap-2 text-center text-sm"></div>
+                </div>
+                <div id="mow-history-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-lg font-semibold text-gray-700">Mow History</h2>
+                        <button id="clearHistoryBtn" type="button" class="text-xs text-red-500 hover:text-red-700">Clear history</button>
+                    </div>
+                    <div id="mowHistoryList" class="space-y-1 text-sm max-h-40 overflow-y-auto"></div>
                 </div>
                 <div id="view-toggle-card" class="bg-white p-3 rounded-xl shadow-md">
                     <div class="flex justify-center">
@@ -215,6 +244,79 @@
         </div>
         <div class="w-full h-full p-4">
             <canvas id="fullscreenChart" style="width: 100%; height: 100%;"></canvas>
+        </div>
+    </div>
+
+    <!-- About modal overlay -->
+    <div id="about-overlay" class="fixed inset-0 z-50 hidden bg-black/50 flex items-start justify-center overflow-y-auto p-4 md:p-8">
+        <div class="bg-white rounded-xl shadow-xl max-w-3xl w-full my-8 p-6 md:p-8 relative">
+            <button id="closeAboutBtn" type="button" class="absolute top-4 right-4 px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Close</button>
+
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">About This Tool</h2>
+
+            <div class="space-y-5 text-gray-700 text-sm leading-relaxed">
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">What is this tool?</h3>
+                    <p>This tool estimates your next lawn mowing date using weather data and the Modified Growing Degree Day (MGDD) model, rather than a fixed calendar schedule. Because grass grows based on accumulated heat &mdash; not the calendar &mdash; this approach adapts to your local weather conditions in real time.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">What are Growing Degree Days?</h3>
+                    <p>Plants grow based on accumulated heat, not calendar days. Each day contributes heat units above a base temperature (below which growth stops). <strong>Modified</strong> GDD also caps daily contributions at an upper temperature where growth slows due to heat stress. When accumulated MGDD since your last mow reaches a target threshold, it's time to mow again.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">How to use it</h3>
+                    <ol class="list-decimal list-inside space-y-1 ml-2">
+                        <li>Select your location on the map (click, drag the marker, search, or use the geolocation button)</li>
+                        <li>Pick a grass type preset or set custom base/upper/target values</li>
+                        <li>Enter your last mow date</li>
+                        <li>Click <strong>Estimate Next Mow Date</strong></li>
+                    </ol>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Two modes</h3>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li><strong>Real-time</strong> &mdash; Uses historical PRISM data plus a 15-day GFS forecast to estimate your next specific mow date. Shows an accumulation chart and day-by-day breakdown.</li>
+                        <li><strong>Climatology</strong> &mdash; Uses 30 years of PRISM normals (1991&ndash;2020) to show average mowing intervals throughout the year for your location. Useful for seasonal planning.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Growing Season Detection</h3>
+                    <p>The tool automatically detects when grass breaks dormancy in spring using the PACE Turf Growth Potential model (species-specific temperature response), preventing false mowing recommendations during winter warm spells.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Grass type presets</h3>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 40&deg;F, Upper 90&deg;F, Target 150 MGDD</li>
+                        <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 100&deg;F, Target 200 MGDD</li>
+                        <li><strong>Zoysia Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 95&deg;F, Target 180 MGDD</li>
+                    </ul>
+                    <p class="mt-1">These are starting points; adjust to match your lawn's actual growth rate.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Precipitation Adjustment</h3>
+                    <p>In real-time mode, the tool adjusts daily MGDD contributions based on recent rainfall. A rolling 7-day precipitation total is compared to each grass type's optimal water need. When rainfall is below optimal, daily growth contributions are scaled down (to a minimum of 50% &mdash; grass slows but rarely stops completely during growing season). When rainfall meets or exceeds the optimal amount, no reduction is applied.</p>
+                    <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
+                        <li><strong>Irrigated toggle</strong> &mdash; If your lawn is irrigated, enable this to bypass precipitation adjustments entirely (multiplier always 1.0).</li>
+                        <li><strong>Moisture status</strong> &mdash; After calculation, a status indicator shows current soil moisture conditions: adequate (green), slightly dry (yellow), or drought stress (red).</li>
+                        <li><strong>Climatology mode</strong> does not apply precipitation scaling, since 30-year averages already incorporate typical precipitation patterns.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Data sources</h3>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li>Historical weather: <a href="https://data.rcc-acis.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">ACIS PRISM GridData</a> (Regional Climate Centers)</li>
+                        <li>Forecast weather: <a href="https://open-meteo.com/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">Open-Meteo GFS</a> (15-day forecast)</li>
+                        <li>Map tiles: <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">OpenStreetMap</a></li>
+                    </ul>
+                </section>
+            </div>
         </div>
     </div>
 
@@ -450,6 +552,8 @@
                 resultContainer.classList.add('hidden');
                 if (climoResultContainer) climoResultContainer.classList.add('hidden');
                 if (climoLoadingSpinner) climoLoadingSpinner.classList.add('hidden');
+                const wc = document.getElementById('weather-card');
+                if (wc) wc.classList.add('hidden');
             }
             modeRealtimeBtn.addEventListener('click', setModeRealtime);
             modeClimoBtn.addEventListener('click', setModeClimo);
@@ -480,10 +584,11 @@
 
             // --- GRASS TYPE PRESETS ---
             const grassPresets = {
-                kentucky_bluegrass: { base: 32, upper: 86, target: 250 },
-                bermuda_grass: { base: 50, upper: 86, target: 200 },
-                zoysia_grass: { base: 50, upper: 86, target: 225 }
+                kentucky_bluegrass: { base: 32, upper: 86, target: 250, optimalPrecip: 0.75 },
+                bermuda_grass: { base: 50, upper: 86, target: 200, optimalPrecip: 0.75 },
+                zoysia_grass: { base: 50, upper: 86, target: 225, optimalPrecip: 0.50 }
             };
+            const defaultOptimalPrecip = 0.75;
 
             if (grassTypeSelect) {
                 grassTypeSelect.addEventListener('change', function () {
@@ -516,6 +621,47 @@
             const formattedToday = today.toISOString().split('T')[0];
             lastMowedDateInput.value = formattedToday;
             lastMowedDateInput.max = formattedToday;
+
+            // --- LOAD SAVED SETTINGS ---
+            loadSettings();
+            // Ensure lastMowedDate max constraint still applies
+            lastMowedDateInput.max = formattedToday;
+
+            // --- SAVE ON INPUT CHANGES ---
+            [latInput, lonInput, baseTempInput, upperTempInput, targetGddInput, lastMowedDateInput].forEach(function(el) {
+                el.addEventListener('input', saveSettingsDebounced);
+            });
+            if (grassTypeSelect) {
+                grassTypeSelect.addEventListener('change', saveSettingsDebounced);
+            }
+            const irrigatedToggleEl = document.getElementById('irrigatedToggle');
+            if (irrigatedToggleEl) {
+                irrigatedToggleEl.addEventListener('change', saveSettingsDebounced);
+            }
+
+            // --- LOG MOW BUTTON ---
+            const logMowBtn = document.getElementById('logMowBtn');
+            if (logMowBtn) {
+                logMowBtn.addEventListener('click', function() {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    saveMowEntry(todayStr);
+                    lastMowedDateInput.value = todayStr;
+                    saveSettings();
+                    renderMowHistory();
+                });
+            }
+
+            // --- CLEAR HISTORY BUTTON ---
+            const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+            if (clearHistoryBtn) {
+                clearHistoryBtn.addEventListener('click', function() {
+                    localStorage.removeItem('mgdd_mow_history');
+                    renderMowHistory();
+                });
+            }
+
+            // --- RENDER INITIAL MOW HISTORY ---
+            renderMowHistory();
 
             // --- CORE LOGIC ---
             calculateBtn.addEventListener('click', function() {
@@ -587,6 +733,15 @@
                 return gdd > 0 ? gdd : 0;
             }
 
+            function getPrecipScaleFactor(precipWindow, optimalPrecip) {
+                if (!precipWindow || precipWindow.length === 0) return 1.0;
+                const valid = precipWindow.filter(v => v !== null && v !== undefined);
+                if (valid.length === 0) return 1.0;
+                const total = valid.reduce((s, v) => s + v, 0);
+                const scaledOptimal = optimalPrecip * (valid.length / 7);
+                return 0.5 + 0.5 * Math.min(total / scaledOptimal, 1.0);
+            }
+
             async function handleCalculation() {
                 if (!validateInputs()) return;
                 
@@ -603,13 +758,57 @@
                 const lastMowed = lastMowedDateInput.value;
                 
                 try {
+                    // Fetch from Jan 1 of the earlier of lastMowed's year or current year for growing season detection
+                    const lastMowedYear = parseInt(lastMowed.slice(0, 4));
+                    const todayYear = parseInt(getYesterdayString().slice(0, 4));
+                    const acisStart = Math.min(lastMowedYear, todayYear) + '-01-01';
                     const [historicalData, forecastData] = await Promise.all([
-                        fetchAcisData(lat, lon, lastMowed, getYesterdayString()),
+                        fetchAcisData(lat, lon, acisStart, getYesterdayString()),
                         fetchOpenMeteoData(lat, lon, getTodayString(), getFutureDateString(15))
                     ]);
-                    
+
                     if (!historicalData.daily || !forecastData.daily) {
                          throw new Error("Weather data could not be retrieved. Please try again.");
+                    }
+
+                    // --- GROWING SEASON GATE (Growth Potential model) ---
+                    const grassType = grassTypeSelect ? grassTypeSelect.value : 'custom';
+                    const currentYear = getYesterdayString().slice(0, 4);
+                    const jan1Current = currentYear + '-01-01';
+                    const jan1Idx = historicalData.daily.time.indexOf(jan1Current);
+                    const seasonTimes = jan1Idx >= 0 ? historicalData.daily.time.slice(jan1Idx) : historicalData.daily.time;
+                    const seasonMins = jan1Idx >= 0 ? historicalData.daily.temperature_2m_min.slice(jan1Idx) : historicalData.daily.temperature_2m_min;
+                    const seasonMaxs = jan1Idx >= 0 ? historicalData.daily.temperature_2m_max.slice(jan1Idx) : historicalData.daily.temperature_2m_max;
+                    // Combine historical + forecast (in case growing season starts in forecast period)
+                    const combinedTimes = seasonTimes.concat(forecastData.daily.time);
+                    const combinedMins = seasonMins.concat(forecastData.daily.temperature_2m_min);
+                    const combinedMaxs = seasonMaxs.concat(forecastData.daily.temperature_2m_max);
+                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, grassType);
+                    const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
+                    let effectiveStart;
+                    if (!growingSeasonStart) {
+                        // Growing season hasn't started yet — no GDD accumulation
+                        effectiveStart = new Date('9999-12-31T00:00:00');
+                    } else if (new Date(growingSeasonStart + 'T00:00:00') > lastMowedDateObj) {
+                        effectiveStart = new Date(growingSeasonStart + 'T00:00:00');
+                    } else {
+                        effectiveStart = lastMowedDateObj;
+                    }
+                    // Show growing season info
+                    const growingSeasonInfoEl = document.getElementById('growingSeasonInfo');
+                    if (growingSeasonInfoEl) {
+                        if (!growingSeasonStart) {
+                            growingSeasonInfoEl.textContent = 'Growing season has not started yet (sustained growth potential not reached)';
+                            growingSeasonInfoEl.classList.remove('hidden');
+                        } else if (effectiveStart > lastMowedDateObj) {
+                            const gsDate = new Date(growingSeasonStart + 'T00:00:00');
+                            growingSeasonInfoEl.textContent = 'Growing season start: ' +
+                                gsDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
+                                ' (sustained growth potential reached)';
+                            growingSeasonInfoEl.classList.remove('hidden');
+                        } else {
+                            growingSeasonInfoEl.classList.add('hidden');
+                        }
                     }
 
                     // --- DATA PROCESSING & CHART PREPARATION ---
@@ -618,28 +817,65 @@
                     const observedValues = [];
                     const forecastValues = [];
                     let crossingDateHistorical = null;
+                    const lowerTarget = targetGDD * 0.90;
+                    const upperTarget = targetGDD * 1.10;
+                    let windowStartDate = null;
+                    let windowEndDate = null;
 
-                    // Process historical data
-                    const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
+                    // Precipitation scaling setup
+                    const irrigatedToggle = document.getElementById('irrigatedToggle');
+                    const irrigated = irrigatedToggle ? irrigatedToggle.checked : false;
+                    const preset = grassPresets[grassType];
+                    const optimalPrecip = preset ? preset.optimalPrecip : defaultOptimalPrecip;
+                    const precipWindow = []; // rolling 7-day window (inches)
+                    let latestScaleFactor = 1.0;
+                    let latestPrecip7day = 0;
+                    let dormancyEndIndex = -1;
+                    const showDormancy = !growingSeasonStart || new Date(growingSeasonStart + 'T00:00:00') > lastMowedDateObj;
+
+                    // Build precip window from all historical data (soil moisture predates the mow)
                     historicalData.daily.time.forEach((date, i) => {
+                        const pVal = historicalData.daily.precipitation_sum ? historicalData.daily.precipitation_sum[i] : null;
+                        precipWindow.push(pVal);
+                        if (precipWindow.length > 7) precipWindow.shift();
+
                         const currentDate = new Date(date + 'T00:00:00');
-                        if (currentDate > lastMowedDateObj) {
-                            const dailyGDD = calculateGDD(historicalData.daily.temperature_2m_min[i], historicalData.daily.temperature_2m_max[i], baseT, upperT);
+
+                        // Dormancy period — after last mow but before growing season
+                        if (showDormancy && currentDate > lastMowedDateObj && currentDate < effectiveStart) {
+                            chartLabels.push(currentDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+                            observedValues.push(0);
+                            dormancyEndIndex = chartLabels.length - 1;
+                        }
+
+                        if (currentDate > lastMowedDateObj && currentDate >= effectiveStart) {
+                            const rawGDD = calculateGDD(historicalData.daily.temperature_2m_min[i], historicalData.daily.temperature_2m_max[i], baseT, upperT);
+                            const scaleFactor = irrigated ? 1.0 : getPrecipScaleFactor(precipWindow, optimalPrecip);
+                            const dailyGDD = rawGDD * scaleFactor;
                             accumulatedGDD += dailyGDD;
+                            latestScaleFactor = scaleFactor;
+                            const validPrecip = precipWindow.filter(v => v !== null && v !== undefined);
+                            latestPrecip7day = validPrecip.reduce((s, v) => s + v, 0);
                             chartLabels.push(new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
                             observedValues.push(accumulatedGDD);
+                            if (!windowStartDate && accumulatedGDD >= lowerTarget) {
+                                windowStartDate = date;
+                            }
+                            if (!windowEndDate && accumulatedGDD >= upperTarget) {
+                                windowEndDate = date;
+                            }
                             if (!crossingDateHistorical && accumulatedGDD >= targetGDD) {
                                 crossingDateHistorical = date;
                             }
                         }
                     });
-                    
+
                     currentGDDEl.textContent = accumulatedGDD.toFixed(1);
 
                     // Process forecast data
                     let forecastAccumulation = accumulatedGDD;
                     let estimatedMowDate = crossingDateHistorical;
-                    let forecastHTML = '<div class="font-semibold grid grid-cols-4 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Daily MGDD</div><div>Total</div></div>';
+                    let forecastHTML = '<div class="font-semibold grid grid-cols-6 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
 
                     // Pad forecast array to align with observed data on the chart
                     const padLength = Math.max(0, observedValues.length - 1);
@@ -651,22 +887,51 @@
                     }
 
                     forecastData.daily.time.forEach((date, i) => {
-                        const dailyGDD = calculateGDD(forecastData.daily.temperature_2m_min[i], forecastData.daily.temperature_2m_max[i], baseT, upperT);
+                        const forecastDate = new Date(date + 'T00:00:00');
+                        // Convert Open-Meteo precipitation from mm to inches
+                        const precipMm = forecastData.daily.precipitation_sum ? forecastData.daily.precipitation_sum[i] : 0;
+                        const precipIn = precipMm / 25.4;
+                        precipWindow.push(precipIn);
+                        if (precipWindow.length > 7) precipWindow.shift();
+
+                        const rawGDD = (forecastDate >= effectiveStart)
+                            ? calculateGDD(forecastData.daily.temperature_2m_min[i], forecastData.daily.temperature_2m_max[i], baseT, upperT)
+                            : 0;
+                        const scaleFactor = irrigated ? 1.0 : getPrecipScaleFactor(precipWindow, optimalPrecip);
+                        const dailyGDD = rawGDD * scaleFactor;
                         forecastAccumulation += dailyGDD;
+                        latestScaleFactor = scaleFactor;
+                        const validPrecip = precipWindow.filter(v => v !== null && v !== undefined);
+                        latestPrecip7day = validPrecip.reduce((s, v) => s + v, 0);
 
                         const displayDate = new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                         chartLabels.push(displayDate);
                         forecastValues.push(forecastAccumulation);
-                        
+                        if (showDormancy && forecastDate < effectiveStart) {
+                            dormancyEndIndex = chartLabels.length - 1;
+                        }
+
+                        const weatherCode = forecastData.daily.weathercode ? forecastData.daily.weathercode[i] : null;
+                        const weatherInfo = getWeatherInfo(weatherCode);
+                        const windKmh = forecastData.daily.windspeed_10m_max ? forecastData.daily.windspeed_10m_max[i] : null;
+
                         forecastHTML += `
-                            <div class="grid grid-cols-4 gap-2 py-1 ${forecastAccumulation >= targetGDD && !estimatedMowDate ? 'bg-green-100 rounded font-bold' : ''}">
+                            <div class="grid grid-cols-6 gap-2 py-1 ${forecastAccumulation >= targetGDD && !estimatedMowDate ? 'bg-green-100 rounded font-bold' : ''}">
                                 <div>${displayDate}</div>
                                 <div>${Math.round(forecastData.daily.temperature_2m_min[i])}°/${Math.round(forecastData.daily.temperature_2m_max[i])}°</div>
+                                <div>${precipIn.toFixed(2)}"</div>
                                 <div>${dailyGDD.toFixed(1)}</div>
                                 <div>${forecastAccumulation.toFixed(1)}</div>
+                                <div>${weatherInfo.emoji}</div>
                             </div>
                         `;
 
+                        if (!windowStartDate && forecastAccumulation >= lowerTarget) {
+                            windowStartDate = date;
+                        }
+                        if (!windowEndDate && forecastAccumulation >= upperTarget) {
+                            windowEndDate = date;
+                        }
                         if (forecastAccumulation >= targetGDD && !estimatedMowDate) {
                             estimatedMowDate = date;
                         }
@@ -686,8 +951,124 @@
                         if (daysUntilEl) daysUntilEl.textContent = 'N/A';
                     }
 
-                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD);
+                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD, lowerTarget, upperTarget, dormancyEndIndex);
                     showResults();
+
+                    // --- Moisture Status Display ---
+                    const moistureStatusEl = document.getElementById('moistureStatus');
+                    const moistureLabelEl = document.getElementById('moistureLabel');
+                    const moistureDetailEl = document.getElementById('moistureDetail');
+                    if (moistureStatusEl && moistureLabelEl && moistureDetailEl) {
+                        if (irrigated) {
+                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-blue-50 text-blue-800';
+                            moistureLabelEl.textContent = 'Irrigated';
+                            moistureDetailEl.textContent = 'Precipitation adjustments bypassed';
+                        } else if (latestScaleFactor >= 0.9) {
+                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-green-50 text-green-800';
+                            moistureLabelEl.textContent = 'Adequate moisture';
+                            moistureDetailEl.textContent = `7-day precip: ${latestPrecip7day.toFixed(2)} in`;
+                        } else if (latestScaleFactor >= 0.7) {
+                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-yellow-50 text-yellow-800';
+                            moistureLabelEl.textContent = 'Slightly dry';
+                            moistureDetailEl.textContent = `7-day precip: ${latestPrecip7day.toFixed(2)} in — growth rate reduced`;
+                        } else {
+                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-red-50 text-red-800';
+                            moistureLabelEl.textContent = 'Drought stress';
+                            moistureDetailEl.textContent = `7-day precip: ${latestPrecip7day.toFixed(2)} in — growth significantly reduced`;
+                        }
+                        moistureStatusEl.classList.remove('hidden');
+                    }
+
+                    // --- Mow Window Display ---
+                    const mowWindowEl = document.getElementById('mowWindow');
+                    if (mowWindowEl) {
+                        if (windowStartDate && windowEndDate) {
+                            const wsDate = new Date(windowStartDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            const weDate = new Date(windowEndDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            mowWindowEl.textContent = `Mow window: ${wsDate} – ${weDate}`;
+                            mowWindowEl.classList.remove('hidden');
+                        } else if (windowStartDate) {
+                            const wsDate = new Date(windowStartDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            mowWindowEl.textContent = `Mow window starts: ${wsDate}`;
+                            mowWindowEl.classList.remove('hidden');
+                        } else {
+                            mowWindowEl.classList.add('hidden');
+                        }
+                    }
+
+                    // --- Weekend Suggestion ---
+                    const weekendEl = document.getElementById('weekendSuggestion');
+                    if (weekendEl && estimatedMowDate) {
+                        const mowDateObj = new Date(estimatedMowDate + 'T00:00:00');
+                        const dayOfWeek = mowDateObj.getDay();
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                            const nearestWeekend = getNearestWeekend(estimatedMowDate);
+                            const weekendLabel = nearestWeekend.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+                            let inWindow = false;
+                            if (windowStartDate && windowEndDate) {
+                                const ws = new Date(windowStartDate + 'T00:00:00');
+                                const we = new Date(windowEndDate + 'T00:00:00');
+                                inWindow = nearestWeekend >= ws && nearestWeekend <= we;
+                            }
+                            const statusText = inWindow ? '(within mow window)' : '(outside optimal window)';
+                            weekendEl.textContent = `Nearest weekend: ${weekendLabel} ${statusText}`;
+                            weekendEl.classList.remove('hidden');
+                        } else {
+                            weekendEl.classList.add('hidden');
+                        }
+                    } else if (weekendEl) {
+                        weekendEl.classList.add('hidden');
+                    }
+
+                    // --- Weather Context ---
+                    const weatherCard = document.getElementById('weather-card');
+                    const weatherStrip = document.getElementById('weatherStrip');
+                    const weatherAlertEl = document.getElementById('weatherAlert');
+                    if (weatherCard && weatherStrip && estimatedMowDate && forecastData.daily.weathercode) {
+                        const forecastTimes = forecastData.daily.time;
+                        const mowIdx = forecastTimes.indexOf(estimatedMowDate);
+                        if (mowIdx !== -1) {
+                            const startIdx = Math.max(0, mowIdx - 2);
+                            const endIdx = Math.min(forecastTimes.length - 1, mowIdx + 2);
+                            let stripHTML = '';
+                            const alerts = [];
+                            for (let wi = startIdx; wi <= endIdx; wi++) {
+                                const wDate = new Date(forecastTimes[wi] + 'T00:00:00');
+                                const wLabel = wDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                                const wInfo = getWeatherInfo(forecastData.daily.weathercode[wi]);
+                                const precip = forecastData.daily.precipitation_sum ? forecastData.daily.precipitation_sum[wi] : 0;
+                                const windKmh = forecastData.daily.windspeed_10m_max ? forecastData.daily.windspeed_10m_max[wi] : 0;
+                                const windMph = (windKmh * 0.621371).toFixed(0);
+                                const isMowDay = wi === mowIdx;
+                                const ringClass = isMowDay ? 'ring-2 ring-green-500 bg-green-50' : 'bg-gray-50';
+                                stripHTML += `<div class="rounded-lg p-2 ${ringClass}">
+                                    <div class="font-medium text-xs">${wLabel}</div>
+                                    <div class="text-2xl my-1">${wInfo.emoji}</div>
+                                    <div class="text-xs text-gray-500">${wInfo.label}</div>
+                                    <div class="text-xs">${precip.toFixed(1)} mm</div>
+                                    <div class="text-xs">${windMph} mph</div>
+                                </div>`;
+                                if (isMowDay && precip > 0.5) alerts.push('Rain expected on mow day');
+                                if (!isMowDay && precip > 2) alerts.push(`Heavy rain on ${wLabel}`);
+                                if (isMowDay && windKmh > 25) alerts.push('High wind on mow day');
+                            }
+                            weatherStrip.innerHTML = stripHTML;
+                            if (alerts.length > 0) {
+                                weatherAlertEl.textContent = alerts.join(' | ');
+                                weatherAlertEl.classList.remove('hidden');
+                            } else {
+                                weatherAlertEl.classList.add('hidden');
+                            }
+                            weatherCard.classList.remove('hidden');
+                        } else {
+                            weatherCard.classList.add('hidden');
+                        }
+                    } else if (weatherCard) {
+                        weatherCard.classList.add('hidden');
+                    }
+
+                    saveSettings();
+
                     if (!plotCard.classList.contains('hidden')) {
                         if (gddChartInstance) gddChartInstance.resize();
                     }
@@ -704,9 +1085,59 @@
                 }
             }
             
-            function renderGddChart(labels, observedData, forecastData, target) {
+            function renderGddChart(labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex) {
                 if (gddChartInstance) {
                     gddChartInstance.destroy();
+                }
+                const annotations = {
+                    thresholdLine: {
+                        type: 'line',
+                        yMin: target,
+                        yMax: target,
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 2,
+                        borderDash: [10, 5],
+                        label: {
+                            content: `Target: ${target}`,
+                            enabled: true,
+                            position: 'end',
+                            backgroundColor: 'rgba(75, 192, 192, 0.8)'
+                        }
+                    }
+                };
+                if (lowerTarget != null && upperTarget != null) {
+                    annotations.mowWindowBox = {
+                        type: 'box',
+                        yMin: lowerTarget,
+                        yMax: upperTarget,
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        borderColor: 'rgba(75, 192, 192, 0.3)',
+                        borderWidth: 1,
+                        label: {
+                            content: 'Mow Window',
+                            display: true,
+                            position: 'start',
+                            color: 'rgba(75, 192, 192, 0.8)',
+                            font: { size: 10 }
+                        }
+                    };
+                }
+                if (dormancyEndIndex != null && dormancyEndIndex >= 0) {
+                    annotations.dormancyBox = {
+                        type: 'box',
+                        xMin: 0,
+                        xMax: dormancyEndIndex,
+                        backgroundColor: 'rgba(156, 163, 175, 0.15)',
+                        borderColor: 'rgba(156, 163, 175, 0.3)',
+                        borderWidth: 1,
+                        label: {
+                            content: 'Dormant',
+                            display: true,
+                            position: { x: 'center', y: 'start' },
+                            color: 'rgba(107, 114, 128, 0.8)',
+                            font: { size: 11, style: 'italic' }
+                        }
+                    };
                 }
                 const ctx = document.getElementById('gddChart').getContext('2d');
                 gddChartInstance = new Chart(ctx, {
@@ -736,24 +1167,7 @@
                         plugins: {
                             title: { display: true, text: 'MGDD Accumulation Over Time' },
                             legend: { position: 'bottom' },
-                            annotation: {
-                                annotations: {
-                                    thresholdLine: {
-                                        type: 'line',
-                                        yMin: target,
-                                        yMax: target,
-                                        borderColor: 'rgb(75, 192, 192)',
-                                        borderWidth: 2,
-                                        borderDash: [10, 5],
-                                        label: {
-                                            content: `Target: ${target}`,
-                                            enabled: true,
-                                            position: 'end',
-                                            backgroundColor: 'rgba(75, 192, 192, 0.8)'
-                                        }
-                                    }
-                                }
-                            }
+                            annotation: { annotations }
                         },
                         scales: {
                             x: { title: { display: true, text: 'Date' } },
@@ -768,7 +1182,7 @@
              */
             async function fetchAcisData(lat, lon, startDate, endDate) {
                 if (new Date(startDate) > new Date(endDate)) {
-                    return { daily: { time: [], temperature_2m_min: [], temperature_2m_max: [] } };
+                    return { daily: { time: [], temperature_2m_min: [], temperature_2m_max: [], precipitation_sum: [] } };
                 }
 
                 const apiUrl = 'https://data.rcc-acis.org/GridData';
@@ -777,7 +1191,7 @@
                     sdate: startDate,
                     edate: endDate,
                     grid: '21',
-                    elems: "maxt,mint",
+                    elems: "maxt,mint,pcpn",
                     meta: []
                 };
 
@@ -791,12 +1205,16 @@
                 const acisResult = await response.json();
                 if (acisResult.error) throw new Error(`ACIS API returned an error: ${acisResult.error}`);
 
-                const formattedData = { daily: { time: [], temperature_2m_max: [], temperature_2m_min: [] } };
+                const formattedData = { daily: { time: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_sum: [] } };
                 acisResult.data.forEach(day => {
                     if (day[1] !== 'M' && day[2] !== 'M') {
                         formattedData.daily.time.push(day[0]);
                         formattedData.daily.temperature_2m_max.push(parseFloat(day[1]));
                         formattedData.daily.temperature_2m_min.push(parseFloat(day[2]));
+                        let precip = null;
+                        if (day[3] === 'T') precip = 0.01;
+                        else if (day[3] !== 'M' && day[3] !== undefined) precip = parseFloat(day[3]);
+                        formattedData.daily.precipitation_sum.push(precip);
                     }
                 });
                 return formattedData;
@@ -809,10 +1227,136 @@
                 if (new Date(startDate) > new Date(endDate)) {
                     return { daily: { time: [], temperature_2m_min: [], temperature_2m_max: [] } };
                 }
-                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&start_date=${startDate}&end_date=${endDate}&timezone=auto&model=gfs`;
+                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max&temperature_unit=fahrenheit&start_date=${startDate}&end_date=${endDate}&timezone=auto&model=gfs`;
                 const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error(`Open-Meteo API error! status: ${response.status}`);
                 return await response.json();
+            }
+
+            // --- HELPER FUNCTIONS ---
+            function getNearestWeekend(dateStr) {
+                const d = new Date(dateStr + 'T00:00:00');
+                const dow = d.getDay();
+                // Find nearest Saturday or Sunday
+                const candidates = [];
+                // Previous Saturday
+                const prevSat = new Date(d); prevSat.setDate(d.getDate() - ((dow + 1) % 7));
+                candidates.push(prevSat);
+                // Next Saturday
+                const nextSat = new Date(d); nextSat.setDate(d.getDate() + (6 - dow));
+                candidates.push(nextSat);
+                // Previous Sunday
+                const prevSun = new Date(d); prevSun.setDate(d.getDate() - dow);
+                candidates.push(prevSun);
+                // Next Sunday
+                const nextSun = new Date(d); nextSun.setDate(d.getDate() + (7 - dow));
+                candidates.push(nextSun);
+
+                let best = candidates[0];
+                let bestDiff = Math.abs(candidates[0] - d);
+                for (let ci = 1; ci < candidates.length; ci++) {
+                    const diff = Math.abs(candidates[ci] - d);
+                    if (diff < bestDiff || (diff === bestDiff && candidates[ci] < best)) {
+                        best = candidates[ci];
+                        bestDiff = diff;
+                    }
+                }
+                return best;
+            }
+
+            function getWeatherInfo(code) {
+                if (code == null) return { emoji: '', label: '' };
+                if (code === 0) return { emoji: '\u2600\uFE0F', label: 'Clear' };
+                if (code <= 3) return { emoji: '\u26C5', label: 'Cloudy' };
+                if (code <= 49) return { emoji: '\uD83C\uDF2B\uFE0F', label: 'Fog' };
+                if (code <= 59) return { emoji: '\uD83C\uDF27\uFE0F', label: 'Drizzle' };
+                if (code <= 69) return { emoji: '\uD83C\uDF27\uFE0F', label: 'Rain' };
+                if (code <= 79) return { emoji: '\u2744\uFE0F', label: 'Snow' };
+                if (code <= 84) return { emoji: '\uD83C\uDF27\uFE0F', label: 'Showers' };
+                if (code <= 94) return { emoji: '\u2744\uFE0F', label: 'Snow' };
+                return { emoji: '\u26A1', label: 'Thunderstorm' };
+            }
+
+            // --- LOCALSTORAGE FUNCTIONS ---
+            let saveSettingsTimer = null;
+            function saveSettings() {
+                try {
+                    const settings = {
+                        lat: latInput.value,
+                        lon: lonInput.value,
+                        grassType: grassTypeSelect ? grassTypeSelect.value : 'custom',
+                        baseTemp: baseTempInput.value,
+                        upperTemp: upperTempInput.value,
+                        targetGDD: targetGddInput.value,
+                        lastMowedDate: lastMowedDateInput.value,
+                        irrigated: document.getElementById('irrigatedToggle') ? document.getElementById('irrigatedToggle').checked : false
+                    };
+                    localStorage.setItem('mgdd_user_settings', JSON.stringify(settings));
+                } catch (e) {}
+            }
+
+            function saveSettingsDebounced() {
+                clearTimeout(saveSettingsTimer);
+                saveSettingsTimer = setTimeout(saveSettings, 500);
+            }
+
+            function loadSettings() {
+                try {
+                    const raw = localStorage.getItem('mgdd_user_settings');
+                    if (!raw) return;
+                    const s = JSON.parse(raw);
+                    if (s.lat) latInput.value = s.lat;
+                    if (s.lon) lonInput.value = s.lon;
+                    if (s.grassType && grassTypeSelect) grassTypeSelect.value = s.grassType;
+                    if (s.baseTemp) baseTempInput.value = s.baseTemp;
+                    if (s.upperTemp) upperTempInput.value = s.upperTemp;
+                    if (s.targetGDD) targetGddInput.value = s.targetGDD;
+                    if (s.lastMowedDate) lastMowedDateInput.value = s.lastMowedDate;
+                    const irrigatedEl = document.getElementById('irrigatedToggle');
+                    if (irrigatedEl && s.irrigated !== undefined) irrigatedEl.checked = s.irrigated;
+                    // Update map marker
+                    const lat = parseFloat(s.lat);
+                    const lon = parseFloat(s.lon);
+                    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                        const latlng = L.latLng(lat, lon);
+                        marker.setLatLng(latlng);
+                        map.setView(latlng, 10);
+                    }
+                } catch (e) {}
+            }
+
+            function saveMowEntry(date) {
+                try {
+                    const raw = localStorage.getItem('mgdd_mow_history');
+                    const history = raw ? JSON.parse(raw) : { entries: [] };
+                    // Avoid duplicates for same date
+                    if (!history.entries.some(function(e){ return e.date === date; })) {
+                        history.entries.push({ date: date, note: '' });
+                        history.entries.sort(function(a, b){ return b.date.localeCompare(a.date); });
+                        localStorage.setItem('mgdd_mow_history', JSON.stringify(history));
+                    }
+                } catch (e) {}
+            }
+
+            function renderMowHistory() {
+                const card = document.getElementById('mow-history-card');
+                const list = document.getElementById('mowHistoryList');
+                if (!card || !list) return;
+                try {
+                    const raw = localStorage.getItem('mgdd_mow_history');
+                    const history = raw ? JSON.parse(raw) : { entries: [] };
+                    if (history.entries.length === 0) {
+                        card.classList.add('hidden');
+                        return;
+                    }
+                    card.classList.remove('hidden');
+                    list.innerHTML = history.entries.map(function(e) {
+                        const d = new Date(e.date + 'T00:00:00');
+                        return '<div class="py-1 border-b border-gray-100">' + d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + '</div>';
+                    }).join('');
+                } catch (e) {
+                    card.classList.add('hidden');
+                }
             }
 
             // --- DATE HELPER FUNCTIONS ---
@@ -903,6 +1447,37 @@
                 return Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1; // 1..366
             }
 
+            function calculateGrowthPotential(meanTempF, grassType) {
+                const meanC = (meanTempF - 32) * 5 / 9;
+                const isWarmSeason = (grassType === 'bermuda_grass' || grassType === 'zoysia_grass');
+                const tOpt = isWarmSeason ? 31.0 : 20.0;
+                const variance = isWarmSeason ? 7.0 : 5.5;
+                return Math.exp(-0.5 * Math.pow((meanC - tOpt) / variance, 2));
+            }
+
+            function findGrowingSeasonStart(times, mins, maxs, grassType) {
+                const GP_THRESHOLD = 0.10;
+                const SUSTAINED_DAYS = 7;
+                let consecutiveDays = 0;
+                for (let i = 0; i < times.length; i++) {
+                    if (!Number.isFinite(mins[i]) || !Number.isFinite(maxs[i])) {
+                        consecutiveDays = 0;
+                        continue;
+                    }
+                    const meanF = (mins[i] + maxs[i]) / 2;
+                    const gp = calculateGrowthPotential(meanF, grassType);
+                    if (gp >= GP_THRESHOLD) {
+                        consecutiveDays++;
+                        if (consecutiveDays >= SUSTAINED_DAYS) {
+                            return times[i - SUSTAINED_DAYS + 1];
+                        }
+                    } else {
+                        consecutiveDays = 0;
+                    }
+                }
+                return null;
+            }
+
             async function handleClimatologyCalculation() {
                 // Validate required inputs except last mowed
                 const inputs = [
@@ -988,14 +1563,15 @@
 
                     const daysToTarget = new Array(365).fill(null);
                     for (let start = 0; start < 365; start++) {
-                        const startCum = cum[start];
-                        // binary/linear search for first index where cum[j] - startCum >= target
-                        let j = start + 1;
-                        while (j < start + 365 && cum[j] - startCum < targetGDD) j++;
+                        let effectiveIdx = start;
+                        const startCum = cum[effectiveIdx];
+                        // linear search for first index where cum[j] - startCum >= target
+                        let j = effectiveIdx + 1;
+                        while (j < effectiveIdx + 365 && cum[j] - startCum < targetGDD) j++;
                         if (cum[j] - startCum >= targetGDD) {
-                            daysToTarget[start] = j - start;
+                            daysToTarget[start] = j - start; // total days from original start
                         } else {
-                            daysToTarget[start] = null; // target not reached within a year
+                            daysToTarget[start] = null;
                         }
                         if (start % 30 === 0) {
                             await waitForNextFrame();
@@ -1099,6 +1675,23 @@
             if (closeFullscreenBtn) {
                 closeFullscreenBtn.addEventListener('click', closeFullscreen);
             }
+
+            // --- ABOUT MODAL ---
+            const aboutOverlay = document.getElementById('about-overlay');
+            document.getElementById('openAboutBtn').addEventListener('click', function () {
+                aboutOverlay.classList.remove('hidden');
+            });
+            document.getElementById('closeAboutBtn').addEventListener('click', function () {
+                aboutOverlay.classList.add('hidden');
+            });
+            aboutOverlay.addEventListener('click', function (e) {
+                if (e.target === aboutOverlay) aboutOverlay.classList.add('hidden');
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !aboutOverlay.classList.contains('hidden')) {
+                    aboutOverlay.classList.add('hidden');
+                }
+            });
         });
     </script>
 </body>
