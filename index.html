@@ -739,7 +739,7 @@
                 if (valid.length === 0) return 1.0;
                 const total = valid.reduce((s, v) => s + v, 0);
                 const scaledOptimal = optimalPrecip * (valid.length / 7);
-                return 0.5 + 0.5 * Math.min(total / scaledOptimal, 1.0);
+                return 0.5 + 0.5 * Math.min(Math.max(0, total / scaledOptimal), 1.0);
             }
 
             async function handleCalculation() {
@@ -892,7 +892,7 @@
                         const forecastDate = new Date(date + 'T00:00:00');
                         // Convert Open-Meteo precipitation from mm to inches
                         const precipMm = forecastData.daily.precipitation_sum ? forecastData.daily.precipitation_sum[i] : 0;
-                        const precipIn = precipMm / 25.4;
+                        const precipIn = (precipMm > 0) ? precipMm / 25.4 : 0;
                         precipWindow.push(precipIn);
                         if (precipWindow.length > 7) precipWindow.shift();
 
