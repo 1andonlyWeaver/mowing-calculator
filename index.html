@@ -802,9 +802,11 @@
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else if (effectiveStart > lastMowedDateObj) {
                             const gsDate = new Date(growingSeasonStart + 'T00:00:00');
+                            const yesterday = new Date(getYesterdayString() + 'T00:00:00');
+                            const isForecast = gsDate > yesterday;
                             growingSeasonInfoEl.textContent = 'Growing season start: ' +
                                 gsDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
-                                ' (sustained growth potential reached)';
+                                (isForecast ? ' (forecasted from weather outlook)' : ' (sustained growth potential reached)');
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else {
                             growingSeasonInfoEl.classList.add('hidden');
