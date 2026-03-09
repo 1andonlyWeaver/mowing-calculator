@@ -1101,7 +1101,8 @@
                                     precipMm: precip,
                                     windKmh,
                                     weatherCode: forecastData.daily.weathercode[wi],
-                                    isMowDay
+                                    isMowDay,
+                                    tempMaxF: forecastData.daily.temperature_2m_max[wi]
                                 });
                             }
                             renderWeatherStrip(weatherStrips);
@@ -1168,6 +1169,7 @@
                         <div class="font-medium text-xs">${s.wLabel}</div>
                         <div class="text-2xl my-1">${wInfo.emoji}</div>
                         <div class="text-xs text-gray-500">${wInfo.label}</div>
+                        <div class="text-xs font-medium">${Math.round(toDisplayTemp(s.tempMaxF))}${tempUnit()}</div>
                         <div class="text-xs">${toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}</div>
                         <div class="text-xs">${windDisplay}</div>
                     </div>`;
