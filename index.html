@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MGDD Mow Date Estimator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' }</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -45,20 +46,61 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+        html.dark .leaflet-container {
+            background: #1f2937;
+        }
+        html.dark .spinner {
+            border-top-color: #60a5fa;
+        }
     </style>
+    <script>
+        (function() {
+            var stored = localStorage.getItem('mgdd_theme');
+            if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
     <meta name="description" content="Estimate your next mow date using Modified Growing Degree Days (MGDD) with historical and forecast weather data.">
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100">
 
     <div class="container mx-auto p-4 md:p-8 max-w-7xl">
 
         <!-- Header -->
         <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Next Mow Date Estimator</h1>
-            <p class="text-gray-600 mt-2">Using Modified Growing Degree Days (MGDD) to predict lawn growth.</p>
-            <button id="openAboutBtn" type="button" class="mt-2 text-sm text-green-600 hover:text-green-800 underline">
-                About this tool
-            </button>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-100">Next Mow Date Estimator</h1>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">Using Modified Growing Degree Days (MGDD) to predict lawn growth.</p>
+            <div class="flex items-center justify-center gap-3 mt-2">
+                <button id="openAboutBtn" type="button" class="text-sm text-green-600 hover:text-green-800 underline">
+                    About this tool
+                </button>
+                <div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Color theme">
+                    <!-- System: half-filled circle (half sun / half moon) -->
+                    <button id="themeBtn-system" type="button" title="System default" aria-label="System default"
+                        class="p-2 rounded-l-md border bg-green-600 text-white border-green-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    <!-- Light: sun -->
+                    <button id="themeBtn-light" type="button" title="Light mode" aria-label="Light mode"
+                        class="p-2 border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="4"/>
+                            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+                        </svg>
+                    </button>
+                    <!-- Dark: moon -->
+                    <button id="themeBtn-dark" type="button" title="Dark mode" aria-label="Dark mode"
+                        class="p-2 rounded-r-md border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -66,10 +108,10 @@
             <!-- Left Column: Controls & Map -->
             <div class="lg:col-span-2 space-y-8">
                 <!-- Map Card -->
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">1. Select Location</h2>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">1. Select Location</h2>
                     <div class="flex justify-end mb-3">
-                        <button id="useLocationBtn" type="button" class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+                        <button id="useLocationBtn" type="button" class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600">
                             Use my location
                         </button>
                     </div>
@@ -77,60 +119,66 @@
                 </div>
 
                 <!-- Settings Card -->
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">2. Set Parameters</h2>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">2. Set Parameters</h2>
                     <div class="flex justify-center mb-4">
                         <div class="inline-flex rounded-md shadow-sm" role="group">
                             <button id="modeRealtimeBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">Real-time</button>
-                            <button id="modeClimoBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white text-gray-700 border border-gray-300">Climatology</button>
+                            <button id="modeClimoBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">Climatology</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-center mb-4">
+                        <div class="inline-flex rounded-md shadow-sm" role="group">
+                            <button id="unit-toggle-imperial" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">°F / in</button>
+                            <button id="unit-toggle-metric" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">°C / mm</button>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Location Inputs -->
                         <div>
-                            <label for="latitude" class="block text-sm font-medium text-gray-600">Latitude</label>
-                            <input type="number" id="latitude" placeholder="e.g., 40.7128" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <label for="latitude" class="block text-sm font-medium text-gray-600 dark:text-gray-400">Latitude</label>
+                            <input type="number" id="latitude" placeholder="e.g., 40.7128" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 dark:text-gray-100 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                         </div>
                         <div>
-                            <label for="longitude" class="block text-sm font-medium text-gray-600">Longitude</label>
-                            <input type="number" id="longitude" placeholder="e.g., -74.0060" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <label for="longitude" class="block text-sm font-medium text-gray-600 dark:text-gray-400">Longitude</label>
+                            <input type="number" id="longitude" placeholder="e.g., -74.0060" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 dark:text-gray-100 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                         </div>
 
                         <!-- Grass Type Preset -->
                         <div class="md:col-span-2">
-                            <label for="grassType" class="block text-sm font-medium text-gray-600">Grass Type (preset)</label>
-                            <select id="grassType" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <label for="grassType" class="block text-sm font-medium text-gray-600 dark:text-gray-400">Grass Type (preset)</label>
+                            <select id="grassType" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 dark:text-gray-100 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                                 <option value="custom" selected>Custom</option>
                                 <option value="kentucky_bluegrass">Kentucky Bluegrass</option>
                                 <option value="bermuda_grass">Bermuda Grass</option>
                                 <option value="zoysia_grass">Zoysia Grass</option>
                             </select>
-                            <p class="mt-1 text-xs text-gray-500">Selecting a grass type will fill Base, Upper, and Target. You can still edit them.</p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Selecting a grass type will fill Base, Upper, and Target. You can still edit them.</p>
                             <label class="mt-2 inline-flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" id="irrigatedToggle" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                                <span class="text-sm text-gray-700">Lawn is irrigated</span>
-                                <span class="text-xs text-gray-400">(skip precipitation adjustments)</span>
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Lawn is irrigated</span>
+                                <span class="text-xs text-gray-400 dark:text-gray-500">(skip precipitation adjustments)</span>
                             </label>
                         </div>
 
                         <!-- MGDD Thresholds -->
                         <div>
-                            <label for="baseTemp" class="block text-sm font-medium text-gray-600">Base Temperature (°F)</label>
-                            <input type="number" id="baseTemp" value="50" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <label for="baseTemp" class="block text-sm font-medium text-gray-600 dark:text-gray-400">Base Temperature (°F)</label>
+                            <input type="number" id="baseTemp" value="50" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 dark:text-gray-100 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                         </div>
                         <div>
-                            <label for="upperTemp" class="block text-sm font-medium text-gray-600">Upper Temperature (°F)</label>
-                            <input type="number" id="upperTemp" value="86" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <label for="upperTemp" class="block text-sm font-medium text-gray-600 dark:text-gray-400">Upper Temperature (°F)</label>
+                            <input type="number" id="upperTemp" value="86" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 dark:text-gray-100 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                         </div>
 
                         <!-- Target & Last Mowed -->
                         <div>
-                            <label for="targetGDD" class="block text-sm font-medium text-gray-600">Target MGDD Accumulation</label>
-                            <input type="number" id="targetGDD" value="150" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <label for="targetGDD" class="block text-sm font-medium text-gray-600 dark:text-gray-400">Target MGDD Accumulation</label>
+                            <input type="number" id="targetGDD" value="150" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 dark:text-gray-100 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                         </div>
                         <div>
-                            <label for="lastMowedDate" class="block text-sm font-medium text-gray-600">Last Mowed On</label>
-                            <input type="date" id="lastMowedDate" class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <label for="lastMowedDate" class="block text-sm font-medium text-gray-600 dark:text-gray-400">Last Mowed On</label>
+                            <input type="date" id="lastMowedDate" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 dark:text-gray-100 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500">
                         </div>
                     </div>
                 </div>
@@ -144,103 +192,103 @@
 
             <!-- Right Column: Results -->
             <div class="lg:col-span-1 space-y-6">
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">3. Estimated Result</h2>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">3. Estimated Result</h2>
                     <div id="result-container" class="text-center space-y-4 hidden">
-                        <p class="text-gray-600">Estimated Next Mow Date:</p>
+                        <p class="text-gray-600 dark:text-gray-400">Estimated Next Mow Date:</p>
                         <p id="resultDate" class="text-3xl font-bold text-green-600"></p>
-                        <p id="mowWindow" class="text-sm text-gray-600 hidden"></p>
-                        <p id="growingSeasonInfo" class="text-sm text-gray-600 hidden"></p>
-                        <div id="weekendSuggestion" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800"></div>
-                        <p class="text-gray-600">Days until next mow:</p>
-                        <p id="daysUntil" class="text-2xl font-semibold text-gray-800"></p>
-                        <hr class="my-4">
-                        <p class="text-gray-600">Current MGDD since last mow:</p>
-                        <p id="currentGDD" class="text-2xl font-semibold text-gray-800"></p>
+                        <p id="mowWindow" class="text-sm text-gray-600 dark:text-gray-400 hidden"></p>
+                        <p id="growingSeasonInfo" class="text-sm text-gray-600 dark:text-gray-400 hidden"></p>
+                        <div id="weekendSuggestion" class="hidden bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 text-sm text-yellow-800 dark:text-yellow-300"></div>
+                        <p class="text-gray-600 dark:text-gray-400">Days until next mow:</p>
+                        <p id="daysUntil" class="text-2xl font-semibold text-gray-800 dark:text-gray-100"></p>
+                        <hr class="my-4 dark:border-gray-700">
+                        <p class="text-gray-600 dark:text-gray-400">Current MGDD since last mow:</p>
+                        <p id="currentGDD" class="text-2xl font-semibold text-gray-800 dark:text-gray-100"></p>
                         <div id="moistureStatus" class="hidden rounded-lg p-3 text-sm mt-2">
                             <p id="moistureLabel" class="font-medium"></p>
                             <p id="moistureDetail" class="text-xs mt-1 opacity-80"></p>
                         </div>
-                        <hr class="my-4">
-                        <button id="logMowBtn" type="button" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-green-100 text-green-800 border border-green-300 rounded-md hover:bg-green-200">Log Today as Mowed</button>
+                        <hr class="my-4 dark:border-gray-700">
+                        <button id="logMowBtn" type="button" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-300 dark:border-green-700 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50">Log Today as Mowed</button>
                     </div>
                     <div id="climo-result-container" class="text-center space-y-4 hidden">
-                        <p class="text-gray-600">Expected mows per year:</p>
+                        <p class="text-gray-600 dark:text-gray-400">Expected mows per year:</p>
                         <p id="mowsPerYear" class="text-3xl font-bold text-green-600"></p>
                     </div>
                     <div id="loading-spinner" class="hidden flex justify-center items-center py-10">
                         <div class="w-12 h-12 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"></div>
                     </div>
-                     <div id="initial-message" class="text-center text-gray-500 py-10">
+                     <div id="initial-message" class="text-center text-gray-500 dark:text-gray-400 py-10">
                         <p>Fill out the parameters and click calculate to see your estimated next mow date.</p>
                     </div>
                     <div id="error-message" class="hidden text-center text-red-500 font-medium py-10"></div>
                 </div>
-                <div id="weather-card" class="bg-white p-6 rounded-xl shadow-md hidden">
-                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Weather Around Mow Date</h2>
-                    <div id="weatherAlert" class="hidden mb-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800"></div>
+                <div id="weather-card" class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md hidden">
+                    <h2 class="text-xl font-semibold mb-3 text-gray-700 dark:text-gray-300">Weather Around Mow Date</h2>
+                    <div id="weatherAlert" class="hidden mb-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-3 text-sm text-red-800 dark:text-red-300"></div>
                     <div id="weatherStrip" class="grid grid-cols-5 gap-2 text-center text-sm"></div>
                 </div>
-                <div id="mow-history-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                <div id="mow-history-card" class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md hidden">
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-lg font-semibold text-gray-700">Mow History</h2>
+                        <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-300">Mow History</h2>
                         <button id="clearHistoryBtn" type="button" class="text-xs text-red-500 hover:text-red-700">Clear history</button>
                     </div>
                     <div id="mowHistoryList" class="space-y-1 text-sm max-h-40 overflow-y-auto"></div>
                 </div>
-                <div id="view-toggle-card" class="bg-white p-3 rounded-xl shadow-md">
+                <div id="view-toggle-card" class="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-md">
                     <div class="flex justify-center">
                         <div class="inline-flex rounded-md shadow-sm" role="group">
                             <button id="viewPlotBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-l-md bg-green-600 text-white border border-green-600">Plot</button>
-                            <button id="viewTableBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white text-gray-700 border border-gray-300">Table</button>
+                            <button id="viewTableBtn" type="button" class="px-4 py-2 text-sm font-medium rounded-r-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">Table</button>
                         </div>
                     </div>
                 </div>
-                 <div id="forecast-card" class="bg-white p-6 rounded-xl shadow-md hidden">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Forecast Breakdown</h2>
+                 <div id="forecast-card" class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md hidden">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">Forecast Breakdown</h2>
                     <div id="forecast-breakdown" class="space-y-2 text-sm max-h-60 overflow-y-auto">
-                        <p class="text-center text-gray-500">Forecast data will appear here after calculation.</p>
+                        <p class="text-center text-gray-500 dark:text-gray-400">Forecast data will appear here after calculation.</p>
                     </div>
                 </div>
-                <div id="plot-card" class="bg-white p-6 rounded-xl shadow-md">
+                <div id="plot-card" class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
                     <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-xl font-semibold text-gray-700">Accumulation Plot</h2>
-                        <button id="maximizePlotBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Maximize</button>
+                        <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-300">Accumulation Plot</h2>
+                        <button id="maximizePlotBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">Maximize</button>
                     </div>
                     <div id="chart-container">
                         <canvas id="gddChart"></canvas>
-                         <p id="chart-initial-message" class="text-center text-gray-500 py-10">Chart will be displayed here after calculation.</p>
+                         <p id="chart-initial-message" class="text-center text-gray-500 dark:text-gray-400 py-10">Chart will be displayed here after calculation.</p>
                     </div>
                 </div>
-                <div id="climo-card" class="bg-white p-6 rounded-xl shadow-md hidden">
+                <div id="climo-card" class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md hidden">
                     <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-xl font-semibold text-gray-700">Climatology: Days Until Next Mow by Last Mow Date</h2>
-                        <button id="maximizeClimoBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Maximize</button>
+                        <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-300">Climatology: Days Until Next Mow by Last Mow Date</h2>
+                        <button id="maximizeClimoBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">Maximize</button>
                     </div>
                     <div id="climo-loading-spinner" class="hidden flex justify-center items-center py-10">
                         <div class="w-12 h-12 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"></div>
-                        <span class="ml-3 text-gray-600">Calculating climatology...</span>
+                        <span class="ml-3 text-gray-600 dark:text-gray-400">Calculating climatology...</span>
                     </div>
                     <div id="climo-chart-container" style="height: 420px;">
                         <canvas id="climoChart"></canvas>
-                        <p id="climo-initial-message" class="text-center text-gray-500 py-10">Climatology will be displayed here after calculation.</p>
+                        <p id="climo-initial-message" class="text-center text-gray-500 dark:text-gray-400 py-10">Climatology will be displayed here after calculation.</p>
                     </div>
                     <div class="mt-6">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Monthly Median Days Until Next Mow</h3>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Monthly Median Days Until Next Mow</h3>
                         <div id="climo-monthly-chart-container" style="height: 280px;">
                             <canvas id="climoMonthlyChart"></canvas>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Using PRISM 1991–2020 daily normals (maxt/mint) via ACIS GridData.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Using PRISM 1991–2020 daily normals (maxt/mint) via ACIS GridData.</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Fullscreen overlay for charts -->
-    <div id="fullscreen-overlay" class="fixed inset-0 bg-white z-50 hidden">
+    <div id="fullscreen-overlay" class="fixed inset-0 bg-white dark:bg-gray-900 z-50 hidden">
         <div class="absolute top-3 right-3">
-            <button id="closeFullscreenBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Close</button>
+            <button id="closeFullscreenBtn" type="button" class="px-3 py-1 text-sm font-medium rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">Close</button>
         </div>
         <div class="w-full h-full p-4">
             <canvas id="fullscreenChart" style="width: 100%; height: 100%;"></canvas>
@@ -249,24 +297,24 @@
 
     <!-- About modal overlay -->
     <div id="about-overlay" class="fixed inset-0 z-50 hidden bg-black/50 flex items-start justify-center overflow-y-auto p-4 md:p-8">
-        <div class="bg-white rounded-xl shadow-xl max-w-3xl w-full my-8 p-6 md:p-8 relative">
-            <button id="closeAboutBtn" type="button" class="absolute top-4 right-4 px-3 py-1 text-sm font-medium rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50">Close</button>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-3xl w-full my-8 p-6 md:p-8 relative">
+            <button id="closeAboutBtn" type="button" class="absolute top-4 right-4 px-3 py-1 text-sm font-medium rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">Close</button>
 
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">About This Tool</h2>
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">About This Tool</h2>
 
-            <div class="space-y-5 text-gray-700 text-sm leading-relaxed">
+            <div class="space-y-5 text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">What is this tool?</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">What is this tool?</h3>
                     <p>This tool estimates your next lawn mowing date using weather data and the Modified Growing Degree Day (MGDD) model, rather than a fixed calendar schedule. Because grass grows based on accumulated heat &mdash; not the calendar &mdash; this approach adapts to your local weather conditions in real time.</p>
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">What are Growing Degree Days?</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">What are Growing Degree Days?</h3>
                     <p>Plants grow based on accumulated heat, not calendar days. Each day contributes heat units above a base temperature (below which growth stops). <strong>Modified</strong> GDD also caps daily contributions at an upper temperature where growth slows due to heat stress. When accumulated MGDD since your last mow reaches a target threshold, it's time to mow again.</p>
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">How to use it</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">How to use it</h3>
                     <ol class="list-decimal list-inside space-y-1 ml-2">
                         <li>Select your location on the map (click, drag the marker, search, or use the geolocation button)</li>
                         <li>Pick a grass type preset or set custom base/upper/target values</li>
@@ -276,7 +324,7 @@
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Two modes</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Two modes</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
                         <li><strong>Real-time</strong> &mdash; Uses historical PRISM data plus a 15-day GFS forecast to estimate your next specific mow date. Shows an accumulation chart and day-by-day breakdown.</li>
                         <li><strong>Climatology</strong> &mdash; Uses 30 years of PRISM normals (1991&ndash;2020) to show average mowing intervals throughout the year for your location. Useful for seasonal planning.</li>
@@ -284,12 +332,12 @@
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Growing Season Detection</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Growing Season Detection</h3>
                     <p>The tool automatically detects when grass breaks dormancy in spring using the PACE Turf Growth Potential model (species-specific temperature response), preventing false mowing recommendations during winter warm spells.</p>
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Grass type presets</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Grass type presets</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
                         <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 40&deg;F, Upper 90&deg;F, Target 150 MGDD</li>
                         <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 100&deg;F, Target 200 MGDD</li>
@@ -299,7 +347,7 @@
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Precipitation Adjustment</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Precipitation Adjustment</h3>
                     <p>In real-time mode, the tool adjusts daily MGDD contributions based on recent rainfall. A rolling 7-day precipitation total is compared to each grass type's optimal water need. When rainfall is below optimal, daily growth contributions are scaled down (to a minimum of 50% &mdash; grass slows but rarely stops completely during growing season). When rainfall meets or exceeds the optimal amount, no reduction is applied.</p>
                     <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
                         <li><strong>Irrigated toggle</strong> &mdash; If your lawn is irrigated, enable this to bypass precipitation adjustments entirely (multiplier always 1.0).</li>
@@ -309,7 +357,7 @@
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Data sources</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Data sources</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
                         <li>Historical weather: <a href="https://data.rcc-acis.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">ACIS PRISM GridData</a> (Regional Climate Centers)</li>
                         <li>Forecast weather: <a href="https://open-meteo.com/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">Open-Meteo GFS</a> (15-day forecast)</li>
@@ -509,11 +557,21 @@
                 return new Promise(function(resolve){ requestAnimationFrame(resolve); });
             }
 
+            // --- DARK MODE HELPER ---
+            function isDark() {
+                return document.documentElement.classList.contains('dark');
+            }
+
             // --- CHART INSTANCE ---
             let gddChartInstance = null;
             let climoChartInstance = null;
             let climoMonthlyChartInstance = null;
             let fullscreenChartInstance = null;
+
+            // Last render args for theme-toggle re-render
+            let _lastGddArgs = null;
+            let _lastClimoArgs = null;
+            let _lastClimoMonthlyArgs = null;
             const annotationPlugin = window['chartjs-plugin-annotation'] || window.ChartAnnotation;
             if (annotationPlugin && typeof Chart?.register === 'function') {
                 Chart.register(annotationPlugin);
@@ -524,9 +582,9 @@
             function setModeRealtime() {
                 appMode = 'realtime';
                 modeRealtimeBtn.classList.add('bg-green-600','text-white','border-green-600');
-                modeRealtimeBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                modeRealtimeBtn.classList.remove('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
                 modeClimoBtn.classList.remove('bg-green-600','text-white','border-green-600');
-                modeClimoBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+                modeClimoBtn.classList.add('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
                 if (lastMowedContainer) lastMowedContainer.classList.remove('hidden');
                 calculateBtn.textContent = 'Estimate Next Mow Date';
                 viewToggleCard.classList.remove('hidden');
@@ -540,9 +598,9 @@
             function setModeClimo() {
                 appMode = 'climo';
                 modeClimoBtn.classList.add('bg-green-600','text-white','border-green-600');
-                modeClimoBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                modeClimoBtn.classList.remove('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
                 modeRealtimeBtn.classList.remove('bg-green-600','text-white','border-green-600');
-                modeRealtimeBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+                modeRealtimeBtn.classList.add('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
                 if (lastMowedContainer) lastMowedContainer.classList.add('hidden');
                 calculateBtn.textContent = 'Calculate Climatology';
                 viewToggleCard.classList.add('hidden');
@@ -563,17 +621,17 @@
                 forecastCard.classList.remove('hidden');
                 plotCard.classList.add('hidden');
                 viewTableBtn.classList.add('bg-green-600','text-white','border-green-600');
-                viewTableBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                viewTableBtn.classList.remove('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
                 viewPlotBtn.classList.remove('bg-green-600','text-white','border-green-600');
-                viewPlotBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+                viewPlotBtn.classList.add('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
             }
             function showPlotView() {
                 forecastCard.classList.add('hidden');
                 plotCard.classList.remove('hidden');
                 viewPlotBtn.classList.add('bg-green-600','text-white','border-green-600');
-                viewPlotBtn.classList.remove('bg-white','text-gray-700','border-gray-300');
+                viewPlotBtn.classList.remove('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
                 viewTableBtn.classList.remove('bg-green-600','text-white','border-green-600');
-                viewTableBtn.classList.add('bg-white','text-gray-700','border-gray-300');
+                viewTableBtn.classList.add('bg-white','text-gray-700','border-gray-300','dark:bg-gray-700','dark:text-gray-200','dark:border-gray-600');
                 if (gddChartInstance) {
                     gddChartInstance.resize();
                 }
@@ -581,6 +639,82 @@
             viewTableBtn.addEventListener('click', showForecastView);
             viewPlotBtn.addEventListener('click', showPlotView);
 
+
+            // --- UNIT SYSTEM ---
+            let unitSystem = 'imperial'; // 'imperial' | 'metric'
+
+            function toDisplayTemp(tempF) {
+                return unitSystem === 'metric' ? Math.round((tempF - 32) * 5 / 9 * 10) / 10 : tempF;
+            }
+            function fromDisplayTemp(displayTemp) {
+                return unitSystem === 'metric' ? displayTemp * 9 / 5 + 32 : displayTemp;
+            }
+            function toDisplayPrecip(precipIn) {
+                return unitSystem === 'metric' ? precipIn * 25.4 : precipIn;
+            }
+            function tempUnit() { return unitSystem === 'metric' ? '°C' : '°F'; }
+            function precipUnit() { return unitSystem === 'metric' ? 'mm' : 'in'; }
+
+            function applyUnitToggle(newSystem, opts) {
+                opts = opts || {};
+                const skipConvert = opts.skipConvert === true;
+                const oldSystem = unitSystem;
+                unitSystem = newSystem;
+
+                // Update button styles
+                const imperialBtn = document.getElementById('unit-toggle-imperial');
+                const metricBtn = document.getElementById('unit-toggle-metric');
+                if (imperialBtn && metricBtn) {
+                    if (newSystem === 'metric') {
+                        metricBtn.classList.add('bg-green-600', 'text-white', 'border-green-600');
+                        metricBtn.classList.remove('bg-white', 'text-gray-700', 'border-gray-300', 'dark:bg-gray-700', 'dark:text-gray-200', 'dark:border-gray-600');
+                        imperialBtn.classList.remove('bg-green-600', 'text-white', 'border-green-600');
+                        imperialBtn.classList.add('bg-white', 'text-gray-700', 'border-gray-300', 'dark:bg-gray-700', 'dark:text-gray-200', 'dark:border-gray-600');
+                    } else {
+                        imperialBtn.classList.add('bg-green-600', 'text-white', 'border-green-600');
+                        imperialBtn.classList.remove('bg-white', 'text-gray-700', 'border-gray-300', 'dark:bg-gray-700', 'dark:text-gray-200', 'dark:border-gray-600');
+                        metricBtn.classList.remove('bg-green-600', 'text-white', 'border-green-600');
+                        metricBtn.classList.add('bg-white', 'text-gray-700', 'border-gray-300', 'dark:bg-gray-700', 'dark:text-gray-200', 'dark:border-gray-600');
+                    }
+                }
+
+                // Update temp labels
+                const baseTempLabel = document.querySelector('label[for="baseTemp"]');
+                const upperTempLabel = document.querySelector('label[for="upperTemp"]');
+                if (baseTempLabel) baseTempLabel.textContent = `Base Temperature (${tempUnit()})`;
+                if (upperTempLabel) upperTempLabel.textContent = `Upper Temperature (${tempUnit()})`;
+
+                // Convert current input values if switching systems
+                if (!skipConvert && oldSystem !== newSystem) {
+                    const baseVal = parseFloat(baseTempInput.value);
+                    const upperVal = parseFloat(upperTempInput.value);
+                    if (!isNaN(baseVal)) {
+                        const baseFValue = oldSystem === 'metric' ? baseVal * 9 / 5 + 32 : baseVal;
+                        baseTempInput.value = String(toDisplayTemp(baseFValue));
+                    }
+                    if (!isNaN(upperVal)) {
+                        const upperFValue = oldSystem === 'metric' ? upperVal * 9 / 5 + 32 : upperVal;
+                        upperTempInput.value = String(toDisplayTemp(upperFValue));
+                    }
+                    saveSettings();
+                }
+
+                // Re-render results in new unit if a calculation has been run
+                if (lastCalcState && !resultContainer.classList.contains('hidden')) {
+                    renderForecastTable(lastCalcState.forecastRows, lastCalcState.targetGDD);
+                    renderMoistureStatus(lastCalcState.moistureData);
+                    if (lastCalcState.weatherStrips) {
+                        renderWeatherStrip(lastCalcState.weatherStrips);
+                    }
+                }
+            }
+
+            const unitImperialBtn = document.getElementById('unit-toggle-imperial');
+            const unitMetricBtn = document.getElementById('unit-toggle-metric');
+            if (unitImperialBtn) unitImperialBtn.addEventListener('click', function() { applyUnitToggle('imperial'); });
+            if (unitMetricBtn) unitMetricBtn.addEventListener('click', function() { applyUnitToggle('metric'); });
+
+            let lastCalcState = null;
 
             // --- GRASS TYPE PRESETS ---
             const grassPresets = {
@@ -594,8 +728,8 @@
                 grassTypeSelect.addEventListener('change', function () {
                     const preset = grassPresets[grassTypeSelect.value];
                     if (preset) {
-                        baseTempInput.value = String(preset.base);
-                        upperTempInput.value = String(preset.upper);
+                        baseTempInput.value = String(toDisplayTemp(preset.base));
+                        upperTempInput.value = String(toDisplayTemp(preset.upper));
                         targetGddInput.value = String(preset.target);
                     }
                 });
@@ -605,8 +739,8 @@
                         if (!grassTypeSelect || grassTypeSelect.value === 'custom') return;
                         const preset = grassPresets[grassTypeSelect.value];
                         if (!preset) return;
-                        const matchesPreset = Number(baseTempInput.value) === preset.base &&
-                                              Number(upperTempInput.value) === preset.upper &&
+                        const matchesPreset = Number(baseTempInput.value) === toDisplayTemp(preset.base) &&
+                                              Number(upperTempInput.value) === toDisplayTemp(preset.upper) &&
                                               Number(targetGddInput.value) === preset.target;
                         if (!matchesPreset) {
                             grassTypeSelect.value = 'custom';
@@ -744,7 +878,7 @@
 
             async function handleCalculation() {
                 if (!validateInputs()) return;
-                
+                lastCalcState = null;
                 showLoading();
                 forecastBreakdownEl.innerHTML = '';
                 chartInitialMessage.classList.add('hidden');
@@ -752,8 +886,8 @@
 
                 const lat = parseFloat(latInput.value);
                 const lon = parseFloat(lonInput.value);
-                const baseT = parseFloat(document.getElementById('baseTemp').value);
-                const upperT = parseFloat(document.getElementById('upperTemp').value);
+                const baseT = fromDisplayTemp(parseFloat(document.getElementById('baseTemp').value));
+                const upperT = fromDisplayTemp(parseFloat(document.getElementById('upperTemp').value));
                 const targetGDD = parseFloat(document.getElementById('targetGDD').value);
                 const lastMowed = lastMowedDateInput.value;
                 
@@ -877,7 +1011,7 @@
                     // Process forecast data
                     let forecastAccumulation = accumulatedGDD;
                     let estimatedMowDate = crossingDateHistorical;
-                    let forecastHTML = '<div class="font-semibold grid grid-cols-6 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
+                    const forecastRows = [];
 
                     // Pad forecast array to align with observed data on the chart
                     const padLength = Math.max(0, observedValues.length - 1);
@@ -914,19 +1048,17 @@
                         }
 
                         const weatherCode = forecastData.daily.weathercode ? forecastData.daily.weathercode[i] : null;
-                        const weatherInfo = getWeatherInfo(weatherCode);
-                        const windKmh = forecastData.daily.windspeed_10m_max ? forecastData.daily.windspeed_10m_max[i] : null;
 
-                        forecastHTML += `
-                            <div class="grid grid-cols-6 gap-2 py-1 ${forecastAccumulation >= targetGDD && !estimatedMowDate ? 'bg-green-100 rounded font-bold' : ''}">
-                                <div>${displayDate}</div>
-                                <div>${Math.round(forecastData.daily.temperature_2m_min[i])}°/${Math.round(forecastData.daily.temperature_2m_max[i])}°</div>
-                                <div>${precipIn.toFixed(2)}"</div>
-                                <div>${dailyGDD.toFixed(1)}</div>
-                                <div>${forecastAccumulation.toFixed(1)}</div>
-                                <div>${weatherInfo.emoji}</div>
-                            </div>
-                        `;
+                        forecastRows.push({
+                            displayDate,
+                            minF: forecastData.daily.temperature_2m_min[i],
+                            maxF: forecastData.daily.temperature_2m_max[i],
+                            precipIn,
+                            dailyGDD,
+                            accumulation: forecastAccumulation,
+                            weatherCode,
+                            isHighlighted: forecastAccumulation >= targetGDD && !estimatedMowDate
+                        });
 
                         if (!windowStartDate && forecastAccumulation >= lowerTarget) {
                             windowStartDate = date;
@@ -939,7 +1071,7 @@
                         }
                     });
 
-                    forecastBreakdownEl.innerHTML = forecastHTML;
+                    renderForecastTable(forecastRows, targetGDD);
 
                     if (estimatedMowDate) {
                         const dateObj = new Date(estimatedMowDate + 'T00:00:00');
@@ -957,29 +1089,7 @@
                     showResults();
 
                     // --- Moisture Status Display ---
-                    const moistureStatusEl = document.getElementById('moistureStatus');
-                    const moistureLabelEl = document.getElementById('moistureLabel');
-                    const moistureDetailEl = document.getElementById('moistureDetail');
-                    if (moistureStatusEl && moistureLabelEl && moistureDetailEl) {
-                        if (irrigated) {
-                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-blue-50 text-blue-800';
-                            moistureLabelEl.textContent = 'Irrigated';
-                            moistureDetailEl.textContent = 'Precipitation adjustments bypassed';
-                        } else if (latestScaleFactor >= 0.9) {
-                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-green-50 text-green-800';
-                            moistureLabelEl.textContent = 'Adequate moisture';
-                            moistureDetailEl.textContent = `7-day precip: ${latestPrecip7day.toFixed(2)} in`;
-                        } else if (latestScaleFactor >= 0.7) {
-                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-yellow-50 text-yellow-800';
-                            moistureLabelEl.textContent = 'Slightly dry';
-                            moistureDetailEl.textContent = `7-day precip: ${latestPrecip7day.toFixed(2)} in — growth rate reduced`;
-                        } else {
-                            moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-red-50 text-red-800';
-                            moistureLabelEl.textContent = 'Drought stress';
-                            moistureDetailEl.textContent = `7-day precip: ${latestPrecip7day.toFixed(2)} in — growth significantly reduced`;
-                        }
-                        moistureStatusEl.classList.remove('hidden');
-                    }
+                    renderMoistureStatus({ irrigated, latestScaleFactor, latestPrecip7day });
 
                     // --- Mow Window Display ---
                     const mowWindowEl = document.getElementById('mowWindow');
@@ -1023,44 +1133,31 @@
                     }
 
                     // --- Weather Context ---
+                    let weatherStrips = null;
                     const weatherCard = document.getElementById('weather-card');
-                    const weatherStrip = document.getElementById('weatherStrip');
-                    const weatherAlertEl = document.getElementById('weatherAlert');
-                    if (weatherCard && weatherStrip && estimatedMowDate && forecastData.daily.weathercode) {
+                    if (weatherCard && estimatedMowDate && forecastData.daily.weathercode) {
                         const forecastTimes = forecastData.daily.time;
                         const mowIdx = forecastTimes.indexOf(estimatedMowDate);
                         if (mowIdx !== -1) {
                             const startIdx = Math.max(0, mowIdx - 2);
                             const endIdx = Math.min(forecastTimes.length - 1, mowIdx + 2);
-                            let stripHTML = '';
-                            const alerts = [];
+                            weatherStrips = [];
                             for (let wi = startIdx; wi <= endIdx; wi++) {
                                 const wDate = new Date(forecastTimes[wi] + 'T00:00:00');
                                 const wLabel = wDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-                                const wInfo = getWeatherInfo(forecastData.daily.weathercode[wi]);
                                 const precip = forecastData.daily.precipitation_sum ? forecastData.daily.precipitation_sum[wi] : 0;
                                 const windKmh = forecastData.daily.windspeed_10m_max ? forecastData.daily.windspeed_10m_max[wi] : 0;
-                                const windMph = (windKmh * 0.621371).toFixed(0);
                                 const isMowDay = wi === mowIdx;
-                                const ringClass = isMowDay ? 'ring-2 ring-green-500 bg-green-50' : 'bg-gray-50';
-                                stripHTML += `<div class="rounded-lg p-2 ${ringClass}">
-                                    <div class="font-medium text-xs">${wLabel}</div>
-                                    <div class="text-2xl my-1">${wInfo.emoji}</div>
-                                    <div class="text-xs text-gray-500">${wInfo.label}</div>
-                                    <div class="text-xs">${precip.toFixed(1)} mm</div>
-                                    <div class="text-xs">${windMph} mph</div>
-                                </div>`;
-                                if (isMowDay && precip > 0.5) alerts.push('Rain expected on mow day');
-                                if (!isMowDay && precip > 2) alerts.push(`Heavy rain on ${wLabel}`);
-                                if (isMowDay && windKmh > 25) alerts.push('High wind on mow day');
+                                weatherStrips.push({
+                                    wLabel,
+                                    precipMm: precip,
+                                    windKmh,
+                                    weatherCode: forecastData.daily.weathercode[wi],
+                                    isMowDay,
+                                    tempMaxF: forecastData.daily.temperature_2m_max[wi]
+                                });
                             }
-                            weatherStrip.innerHTML = stripHTML;
-                            if (alerts.length > 0) {
-                                weatherAlertEl.textContent = alerts.join(' | ');
-                                weatherAlertEl.classList.remove('hidden');
-                            } else {
-                                weatherAlertEl.classList.add('hidden');
-                            }
+                            renderWeatherStrip(weatherStrips);
                             weatherCard.classList.remove('hidden');
                         } else {
                             weatherCard.classList.add('hidden');
@@ -1068,6 +1165,13 @@
                     } else if (weatherCard) {
                         weatherCard.classList.add('hidden');
                     }
+
+                    lastCalcState = {
+                        targetGDD,
+                        forecastRows,
+                        weatherStrips,
+                        moistureData: { irrigated, latestScaleFactor, latestPrecip7day }
+                    };
 
                     saveSettings();
 
@@ -1087,10 +1191,91 @@
                 }
             }
             
+            function renderForecastTable(rows, targetGDD) {
+                let html = '<div class="font-semibold grid grid-cols-6 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
+                rows.forEach(function(row) {
+                    html += `
+                        <div class="grid grid-cols-6 gap-2 py-1 ${row.isHighlighted ? 'bg-green-100 dark:bg-green-900/30 rounded font-bold' : ''}">
+                            <div>${row.displayDate}</div>
+                            <div>${Math.round(toDisplayTemp(row.minF))}${tempUnit()}/${Math.round(toDisplayTemp(row.maxF))}${tempUnit()}</div>
+                            <div>${toDisplayPrecip(row.precipIn).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}</div>
+                            <div>${row.dailyGDD.toFixed(1)}</div>
+                            <div>${row.accumulation.toFixed(1)}</div>
+                            <div>${getWeatherInfo(row.weatherCode).emoji}</div>
+                        </div>`;
+                });
+                forecastBreakdownEl.innerHTML = html;
+            }
+
+            function renderWeatherStrip(strips) {
+                let stripHTML = '';
+                const alerts = [];
+                strips.forEach(function(s) {
+                    const wInfo = getWeatherInfo(s.weatherCode);
+                    const precipIn = s.precipMm / 25.4;
+                    const windDisplay = unitSystem === 'metric'
+                        ? `${Math.round(s.windKmh)} km/h`
+                        : `${(s.windKmh * 0.621371).toFixed(0)} mph`;
+                    const ringClass = s.isMowDay ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-900/30' : 'bg-gray-50 dark:bg-gray-700';
+                    stripHTML += `<div class="rounded-lg p-2 ${ringClass}">
+                        <div class="font-medium text-xs">${s.wLabel}</div>
+                        <div class="text-2xl my-1">${wInfo.emoji}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">${wInfo.label}</div>
+                        <div class="text-xs font-medium">${Math.round(toDisplayTemp(s.tempMaxF))}${tempUnit()}</div>
+                        <div class="text-xs">${toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}</div>
+                        <div class="text-xs">${windDisplay}</div>
+                    </div>`;
+                    if (s.isMowDay && s.precipMm > 0.5) alerts.push('Rain expected on mow day');
+                    if (!s.isMowDay && s.precipMm > 2) alerts.push(`Heavy rain on ${s.wLabel}`);
+                    if (s.isMowDay && s.windKmh > 25) alerts.push('High wind on mow day');
+                });
+                const weatherStripEl = document.getElementById('weatherStrip');
+                const weatherAlertEl = document.getElementById('weatherAlert');
+                if (weatherStripEl) weatherStripEl.innerHTML = stripHTML;
+                if (weatherAlertEl) {
+                    if (alerts.length > 0) {
+                        weatherAlertEl.textContent = alerts.join(' | ');
+                        weatherAlertEl.classList.remove('hidden');
+                    } else {
+                        weatherAlertEl.classList.add('hidden');
+                    }
+                }
+            }
+
+            function renderMoistureStatus(data) {
+                const moistureStatusEl = document.getElementById('moistureStatus');
+                const moistureLabelEl = document.getElementById('moistureLabel');
+                const moistureDetailEl = document.getElementById('moistureDetail');
+                if (!moistureStatusEl || !moistureLabelEl || !moistureDetailEl) return;
+                const precipStr = `${toDisplayPrecip(data.latestPrecip7day).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}`;
+                if (data.irrigated) {
+                    moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
+                    moistureLabelEl.textContent = 'Irrigated';
+                    moistureDetailEl.textContent = 'Precipitation adjustments bypassed';
+                } else if (data.latestScaleFactor >= 0.9) {
+                    moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300';
+                    moistureLabelEl.textContent = 'Adequate moisture';
+                    moistureDetailEl.textContent = `7-day precip: ${precipStr}`;
+                } else if (data.latestScaleFactor >= 0.7) {
+                    moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
+                    moistureLabelEl.textContent = 'Slightly dry';
+                    moistureDetailEl.textContent = `7-day precip: ${precipStr} — growth rate reduced`;
+                } else {
+                    moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300';
+                    moistureLabelEl.textContent = 'Drought stress';
+                    moistureDetailEl.textContent = `7-day precip: ${precipStr} — growth significantly reduced`;
+                }
+                moistureStatusEl.classList.remove('hidden');
+            }
+
             function renderGddChart(labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex) {
+                _lastGddArgs = [labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex];
                 if (gddChartInstance) {
                     gddChartInstance.destroy();
                 }
+                const gridColor = isDark() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+                const tickColor = isDark() ? '#d1d5db' : '#374151';
+                const titleColor = isDark() ? '#f3f4f6' : '#111827';
                 const annotations = {
                     thresholdLine: {
                         type: 'line',
@@ -1167,13 +1352,22 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            title: { display: true, text: 'MGDD Accumulation Over Time' },
-                            legend: { position: 'bottom' },
+                            title: { display: true, text: 'MGDD Accumulation Over Time', color: titleColor },
+                            legend: { position: 'bottom', labels: { color: tickColor } },
                             annotation: { annotations }
                         },
                         scales: {
-                            x: { title: { display: true, text: 'Date' } },
-                            y: { title: { display: true, text: 'Accumulated MGDD' }, beginAtZero: true }
+                            x: {
+                                title: { display: true, text: 'Date', color: tickColor },
+                                ticks: { color: tickColor },
+                                grid: { color: gridColor }
+                            },
+                            y: {
+                                title: { display: true, text: 'Accumulated MGDD', color: tickColor },
+                                ticks: { color: tickColor },
+                                grid: { color: gridColor },
+                                beginAtZero: true
+                            }
                         }
                     }
                 });
@@ -1283,15 +1477,18 @@
             let saveSettingsTimer = null;
             function saveSettings() {
                 try {
+                    const baseTempF = baseTempInput.value !== '' ? fromDisplayTemp(parseFloat(baseTempInput.value)) : '';
+                    const upperTempF = upperTempInput.value !== '' ? fromDisplayTemp(parseFloat(upperTempInput.value)) : '';
                     const settings = {
                         lat: latInput.value,
                         lon: lonInput.value,
                         grassType: grassTypeSelect ? grassTypeSelect.value : 'custom',
-                        baseTemp: baseTempInput.value,
-                        upperTemp: upperTempInput.value,
+                        baseTemp: String(baseTempF),
+                        upperTemp: String(upperTempF),
                         targetGDD: targetGddInput.value,
                         lastMowedDate: lastMowedDateInput.value,
-                        irrigated: document.getElementById('irrigatedToggle') ? document.getElementById('irrigatedToggle').checked : false
+                        irrigated: document.getElementById('irrigatedToggle') ? document.getElementById('irrigatedToggle').checked : false,
+                        unitSystem: unitSystem
                     };
                     localStorage.setItem('mgdd_user_settings', JSON.stringify(settings));
                 } catch (e) {}
@@ -1310,8 +1507,13 @@
                     if (s.lat) latInput.value = s.lat;
                     if (s.lon) lonInput.value = s.lon;
                     if (s.grassType && grassTypeSelect) grassTypeSelect.value = s.grassType;
-                    if (s.baseTemp) baseTempInput.value = s.baseTemp;
-                    if (s.upperTemp) upperTempInput.value = s.upperTemp;
+                    // Restore unit system first so temp conversion works correctly
+                    if (s.unitSystem) {
+                        applyUnitToggle(s.unitSystem, { skipConvert: true });
+                    }
+                    // Temps are stored in °F; convert to display unit
+                    if (s.baseTemp) baseTempInput.value = String(toDisplayTemp(parseFloat(s.baseTemp)));
+                    if (s.upperTemp) upperTempInput.value = String(toDisplayTemp(parseFloat(s.upperTemp)));
                     if (s.targetGDD) targetGddInput.value = s.targetGDD;
                     if (s.lastMowedDate) lastMowedDateInput.value = s.lastMowedDate;
                     const irrigatedEl = document.getElementById('irrigatedToggle');
@@ -1354,7 +1556,7 @@
                     card.classList.remove('hidden');
                     list.innerHTML = history.entries.map(function(e) {
                         const d = new Date(e.date + 'T00:00:00');
-                        return '<div class="py-1 border-b border-gray-100">' + d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + '</div>';
+                        return '<div class="py-1 border-b border-gray-100 dark:border-gray-700">' + d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + '</div>';
                     }).join('');
                 } catch (e) {
                     card.classList.add('hidden');
@@ -1362,27 +1564,38 @@
             }
 
             // --- DATE HELPER FUNCTIONS ---
+            function localDateStr(date) {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+
             function getYesterdayString() {
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
-                return yesterday.toISOString().split('T')[0];
+                return localDateStr(yesterday);
             }
 
             function getTodayString() {
-                return new Date().toISOString().split('T')[0];
+                return localDateStr(new Date());
             }
 
             function getFutureDateString(days) {
                 const futureDate = new Date();
                 futureDate.setDate(futureDate.getDate() + days);
-                return futureDate.toISOString().split('T')[0];
+                return localDateStr(futureDate);
             }
 
             // --- CLIMATOLOGY MODE ---
             function renderClimoChart(labels, dataValues) {
+                _lastClimoArgs = [labels, dataValues];
                 if (climoChartInstance) {
                     climoChartInstance.destroy();
                 }
+                const gridColor = isDark() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+                const tickColor = isDark() ? '#d1d5db' : '#374151';
+                const titleColor = isDark() ? '#f3f4f6' : '#111827';
                 const ctx = document.getElementById('climoChart').getContext('2d');
                 climoChartInstance = new Chart(ctx, {
                     type: 'line',
@@ -1401,21 +1614,34 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            title: { display: true, text: 'Climatological Average Interval to Next Mow' },
-                            legend: { position: 'bottom' }
+                            title: { display: true, text: 'Climatological Average Interval to Next Mow', color: titleColor },
+                            legend: { position: 'bottom', labels: { color: tickColor } }
                         },
                         scales: {
-                            x: { title: { display: true, text: 'Last Mow Date (by day-of-year)' }, ticks: { maxRotation: 0, autoSkip: true } },
-                            y: { title: { display: true, text: 'Days Until Next Mow' }, beginAtZero: true }
+                            x: {
+                                title: { display: true, text: 'Last Mow Date (by day-of-year)', color: tickColor },
+                                ticks: { maxRotation: 0, autoSkip: true, color: tickColor },
+                                grid: { color: gridColor }
+                            },
+                            y: {
+                                title: { display: true, text: 'Days Until Next Mow', color: tickColor },
+                                ticks: { color: tickColor },
+                                grid: { color: gridColor },
+                                beginAtZero: true
+                            }
                         }
                     }
                 });
             }
 
             function renderClimoMonthlyChart(monthLabels, medianValues) {
+                _lastClimoMonthlyArgs = [monthLabels, medianValues];
                 if (climoMonthlyChartInstance) {
                     climoMonthlyChartInstance.destroy();
                 }
+                const gridColor = isDark() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+                const tickColor = isDark() ? '#d1d5db' : '#374151';
+                const titleColor = isDark() ? '#f3f4f6' : '#111827';
                 const ctx = document.getElementById('climoMonthlyChart').getContext('2d');
                 climoMonthlyChartInstance = new Chart(ctx, {
                     type: 'bar',
@@ -1432,12 +1658,21 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            title: { display: true, text: 'Monthly Median Days Until Next Mow' },
+                            title: { display: true, text: 'Monthly Median Days Until Next Mow', color: titleColor },
                             legend: { display: false }
                         },
                         scales: {
-                            x: { title: { display: true, text: 'Month' } },
-                            y: { title: { display: true, text: 'Days' }, beginAtZero: true }
+                            x: {
+                                title: { display: true, text: 'Month', color: tickColor },
+                                ticks: { color: tickColor },
+                                grid: { color: gridColor }
+                            },
+                            y: {
+                                title: { display: true, text: 'Days', color: tickColor },
+                                ticks: { color: tickColor },
+                                grid: { color: gridColor },
+                                beginAtZero: true
+                            }
                         }
                     }
                 });
@@ -1511,8 +1746,8 @@
                 if (climoInitialMessage) climoInitialMessage.classList.add('hidden');
                 const lat = parseFloat(latInput.value);
                 const lon = parseFloat(lonInput.value);
-                const baseT = parseFloat(baseTempInput.value);
-                const upperT = parseFloat(upperTempInput.value);
+                const baseT = fromDisplayTemp(parseFloat(baseTempInput.value));
+                const upperT = fromDisplayTemp(parseFloat(upperTempInput.value));
                 const targetGDD = parseFloat(targetGddInput.value);
 
                 try {
@@ -1685,6 +1920,67 @@
             if (closeFullscreenBtn) {
                 closeFullscreenBtn.addEventListener('click', closeFullscreen);
             }
+
+            // --- THEME SELECTOR ---
+            var THEME_ACTIVE = ['bg-green-600', 'text-white', 'border-green-600'];
+            var THEME_INACTIVE = ['bg-white', 'text-gray-700', 'border-gray-300', 'dark:bg-gray-700', 'dark:text-gray-200', 'dark:border-gray-600'];
+
+            function updateThemeButtons(activeTheme) {
+                ['system', 'light', 'dark'].forEach(function(t) {
+                    var btn = document.getElementById('themeBtn-' + t);
+                    if (!btn) return;
+                    if (t === activeTheme) {
+                        btn.classList.add.apply(btn.classList, THEME_ACTIVE);
+                        btn.classList.remove.apply(btn.classList, THEME_INACTIVE);
+                    } else {
+                        btn.classList.remove.apply(btn.classList, THEME_ACTIVE);
+                        btn.classList.add.apply(btn.classList, THEME_INACTIVE);
+                    }
+                });
+            }
+
+            function applyTheme(theme) {
+                var html = document.documentElement;
+                if (theme === 'dark') {
+                    html.classList.add('dark');
+                } else if (theme === 'light') {
+                    html.classList.remove('dark');
+                } else {
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        html.classList.add('dark');
+                    } else {
+                        html.classList.remove('dark');
+                    }
+                }
+            }
+
+            function setTheme(theme) {
+                if (theme === 'system') {
+                    localStorage.removeItem('mgdd_theme');
+                } else {
+                    localStorage.setItem('mgdd_theme', theme);
+                }
+                applyTheme(theme);
+                updateThemeButtons(theme);
+                if (_lastGddArgs) renderGddChart.apply(null, _lastGddArgs);
+                if (_lastClimoArgs) renderClimoChart.apply(null, _lastClimoArgs);
+                if (_lastClimoMonthlyArgs) renderClimoMonthlyChart.apply(null, _lastClimoMonthlyArgs);
+            }
+
+            ['system', 'light', 'dark'].forEach(function(theme) {
+                var btn = document.getElementById('themeBtn-' + theme);
+                if (btn) btn.addEventListener('click', function() { setTheme(theme); });
+            });
+
+            // Sync system theme if OS preference changes while System mode is active
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+                if (!localStorage.getItem('mgdd_theme')) {
+                    applyTheme('system');
+                }
+            });
+
+            // Set initial button state to match stored preference
+            updateThemeButtons(localStorage.getItem('mgdd_theme') || 'system');
 
             // --- ABOUT MODAL ---
             const aboutOverlay = document.getElementById('about-overlay');
