@@ -42,6 +42,24 @@ The app will:
 - Compute MGDD accumulation since last mowing, adjusted for recent precipitation, and estimate when the target is reached.
 - Display a chart and daily breakdown with a Rain column showing daily precipitation.
 
+### Growing Season Detection
+
+In real-time mode, the app detects when grass breaks spring dormancy before accumulating mowing GDD. Season start requires all five conditions to be met:
+
+1. **Feb 15 biofix** — No GDD accumulates before February 15 (matches MSU GDD Tracker). Universal constant, not species-specific.
+2. **Hard freeze reset** — After the biofix, a day with minimum temperature ≤ 25°F (−3.9°C) resets accumulated green-up GDD to zero. Hard freezes kill newly de-hardened tissue, undoing dormancy-break progress. Universal constant.
+3. **Day-length floor** — Season cannot start until daylight at the user's latitude exceeds 10.0 hours. This is a latitude-dependent astronomical constraint, not a species-specific biological claim. At 40°N, this is approximately February 3; at 45°N, approximately February 10.
+4. **Cumulative GDD threshold** — After the above gates pass, GDD accumulates from the biofix date using a species-specific base temperature. Season starts once the thermal sum reaches the green-up threshold.
+5. **Precipitation gate** — A minimum rainfall total over the prior 14 days is required, since thermal accumulation alone cannot induce sustainable green-up without adequate soil moisture.
+
+| Grass type | Green-up base | GDD threshold | Min 14-day precip |
+|---|---|---|---|
+| Kentucky Bluegrass | 32°F | 200 GDD | 0.25 in |
+| Bermuda Grass | 41°F | 150 GDD | 0.50 in |
+| Zoysia Grass | 41°F | 175 GDD | 0.40 in |
+
+When the season has not started, the tool shows which condition(s) are still blocking and the current progress toward each threshold.
+
 ### Precipitation Adjustment
 
 Daily MGDD contributions are scaled based on a rolling 7-day precipitation total compared to the grass type's optimal water need. When recent rainfall is below optimal, growth contributions are reduced (down to 50%). A moisture status indicator shows current conditions after calculation.
