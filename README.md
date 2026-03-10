@@ -42,6 +42,22 @@ The app will:
 - Compute MGDD accumulation since last mowing, adjusted for recent precipitation, and estimate when the target is reached.
 - Display a chart and daily breakdown with a Rain column showing daily precipitation.
 
+### Growing Season Detection
+
+In real-time mode, the app detects when grass breaks spring dormancy before accumulating mowing GDD. Season start requires all three gates to be satisfied simultaneously:
+
+1. **Cumulative GDD threshold** — GDD accumulates from January 1 using a species-specific base temperature (separate from the mowing base temp). Season starts once the thermal sum reaches the green-up threshold.
+2. **Photoperiod gate** — Day length must reach a species-specific minimum. This is an astronomical constant immune to weather anomalies, preventing false signals during brief winter warm spells.
+3. **Precipitation gate** — A minimum rainfall total over the prior 14 days is required, since thermal accumulation alone cannot induce sustainable green-up without adequate soil moisture.
+
+| Grass type | Green-up base | GDD threshold | Min day length | Min 14-day precip |
+|---|---|---|---|---|
+| Kentucky Bluegrass | 32°F | 200 GDD | 11.0 h | 0.25 in |
+| Bermuda Grass | 41°F | 150 GDD | 12.5 h | 0.50 in |
+| Zoysia Grass | 41°F | 175 GDD | 12.0 h | 0.40 in |
+
+When the season has not started, the tool shows which gate(s) are still blocking and the current progress toward each threshold.
+
 ### Precipitation Adjustment
 
 Daily MGDD contributions are scaled based on a rolling 7-day precipitation total compared to the grass type's optimal water need. When recent rainfall is below optimal, growth contributions are reduced (down to 50%). A moisture status indicator shows current conditions after calculation.

@@ -333,15 +333,20 @@
 
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Growing Season Detection</h3>
-                    <p>The tool automatically detects when grass breaks dormancy in spring using the PACE Turf Growth Potential model (species-specific temperature response), preventing false mowing recommendations during winter warm spells.</p>
+                    <p>The tool detects when grass breaks spring dormancy using a multi-gate model based on turfgrass phenology research:</p>
+                    <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
+                        <li><strong>Cumulative GDD threshold</strong> &mdash; Growing degree days accumulate from January 1 using a species-specific base temperature. Season starts when the thermal sum reaches the green-up threshold (e.g., 200 GDD base 32&deg;F for Kentucky Bluegrass).</li>
+                        <li><strong>Photoperiod gate</strong> &mdash; Minimum day length must be reached (varies by species) to prevent false signals during short winter days.</li>
+                        <li><strong>Precipitation check</strong> &mdash; Minimum recent rainfall is required, since thermal accumulation alone cannot induce sustainable green-up without adequate soil moisture.</li>
+                    </ul>
                 </section>
 
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Grass type presets</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
-                        <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 40&deg;F, Upper 90&deg;F, Target 150 MGDD</li>
-                        <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 100&deg;F, Target 200 MGDD</li>
-                        <li><strong>Zoysia Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 95&deg;F, Target 180 MGDD</li>
+                        <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 40&deg;F, Upper 86&deg;F, Target 250 MGDD</li>
+                        <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 86&deg;F, Target 200 MGDD</li>
+                        <li><strong>Zoysia Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 86&deg;F, Target 225 MGDD</li>
                     </ul>
                     <p class="mt-1">These are starting points; adjust to match your lawn's actual growth rate.</p>
                 </section>
@@ -718,11 +723,36 @@
 
             // --- GRASS TYPE PRESETS ---
             const grassPresets = {
-                kentucky_bluegrass: { base: 40, upper: 86, target: 250, optimalPrecip: 0.75 },
-                bermuda_grass: { base: 50, upper: 86, target: 200, optimalPrecip: 0.75 },
-                zoysia_grass: { base: 50, upper: 86, target: 225, optimalPrecip: 0.50 }
+                kentucky_bluegrass: {
+                    base: 40, upper: 86, target: 250, optimalPrecip: 0.75,
+                    greenUpBase: 32,       // GDD base temp for green-up accumulation (°F)
+                    greenUpGDD: 200,       // cumulative GDD threshold for dormancy break
+                    minDayLength: 11.0,    // hours — ~Mar 5-10 at 40°N
+                    seasonPrecipMin: 0.25, // inches in prior 14 days
+                    seasonPrecipWindow: 14
+                },
+                bermuda_grass: {
+                    base: 50, upper: 86, target: 200, optimalPrecip: 0.75,
+                    greenUpBase: 41,       // 5°C
+                    greenUpGDD: 150,       // initial dormancy break (midpoint 125-200)
+                    minDayLength: 12.5,    // hours — ~Apr 5 at 33°N
+                    seasonPrecipMin: 0.50,
+                    seasonPrecipWindow: 14
+                },
+                zoysia_grass: {
+                    base: 50, upper: 86, target: 225, optimalPrecip: 0.50,
+                    greenUpBase: 41,       // 5°C
+                    greenUpGDD: 175,       // more recalcitrant than Bermuda
+                    minDayLength: 12.0,    // hours
+                    seasonPrecipMin: 0.40,
+                    seasonPrecipWindow: 14
+                }
             };
             const defaultOptimalPrecip = 0.75;
+            const defaultSeasonParams = {
+                cool: { greenUpBase: 32, greenUpGDD: 200, minDayLength: 11.0, seasonPrecipMin: 0.25, seasonPrecipWindow: 14 },
+                warm: { greenUpBase: 41, greenUpGDD: 150, minDayLength: 12.0, seasonPrecipMin: 0.40, seasonPrecipWindow: 14 }
+            };
 
             if (grassTypeSelect) {
                 grassTypeSelect.addEventListener('change', function () {
@@ -905,7 +935,7 @@
                          throw new Error("Weather data could not be retrieved. Please try again.");
                     }
 
-                    // --- GROWING SEASON GATE (Growth Potential model) ---
+                    // --- GROWING SEASON GATE (cumulative GDD + photoperiod + precipitation) ---
                     const grassType = grassTypeSelect ? grassTypeSelect.value : 'custom';
                     const currentYear = getYesterdayString().slice(0, 4);
                     const jan1Current = currentYear + '-01-01';
@@ -917,7 +947,15 @@
                     const combinedTimes = seasonTimes.concat(forecastData.daily.time);
                     const combinedMins = seasonMins.concat(forecastData.daily.temperature_2m_min);
                     const combinedMaxs = seasonMaxs.concat(forecastData.daily.temperature_2m_max);
-                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, grassType, baseT);
+                    // Build combined precipitation array for season detection
+                    const seasonPrecips = jan1Idx >= 0
+                        ? historicalData.daily.precipitation_sum.slice(jan1Idx)
+                        : historicalData.daily.precipitation_sum;
+                    const forecastPrecipsInches = forecastData.daily.precipitation_sum
+                        ? forecastData.daily.precipitation_sum.map(mm => (mm > 0) ? mm / 25.4 : 0)
+                        : new Array(forecastData.daily.time.length).fill(0);
+                    const combinedPrecips = (seasonPrecips || []).concat(forecastPrecipsInches);
+                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, combinedPrecips, lat, grassType, baseT);
                     const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
                     let effectiveStart;
                     if (!growingSeasonStart) {
@@ -932,7 +970,8 @@
                     const growingSeasonInfoEl = document.getElementById('growingSeasonInfo');
                     if (growingSeasonInfoEl) {
                         if (!growingSeasonStart) {
-                            growingSeasonInfoEl.textContent = 'Growing season has not started yet (sustained growth potential not reached)';
+                            const statusDetail = diagnoseSeasonStatus(combinedTimes, combinedMins, combinedMaxs, combinedPrecips, lat, grassType, baseT);
+                            growingSeasonInfoEl.textContent = 'Growing season has not started yet \u2014 ' + statusDetail;
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else if (effectiveStart > lastMowedDateObj) {
                             const gsDate = new Date(growingSeasonStart + 'T00:00:00');
@@ -940,7 +979,7 @@
                             const isForecast = gsDate > yesterday;
                             growingSeasonInfoEl.textContent = 'Growing season start: ' +
                                 gsDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
-                                (isForecast ? ' (forecasted from weather outlook)' : ' (sustained growth potential reached)');
+                                (isForecast ? ' (forecasted from weather outlook)' : ' (dormancy break threshold reached)');
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else {
                             growingSeasonInfoEl.classList.add('hidden');
@@ -1684,43 +1723,83 @@
                 return Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1; // 1..366
             }
 
-            function calculateGrowthPotential(meanTempF, grassType, baseTemp) {
-                const meanC = (meanTempF - 32) * 5 / 9;
-                let isWarmSeason;
-                if (grassType === 'bermuda_grass' || grassType === 'zoysia_grass') {
-                    isWarmSeason = true;
-                } else if (grassType === 'custom') {
-                    // Infer from base temp: warm-season grasses use base >= 50°F
-                    isWarmSeason = (baseTemp !== undefined && baseTemp >= 50);
-                } else {
-                    isWarmSeason = false;
-                }
-                const tOpt = isWarmSeason ? 31.0 : 20.0;
-                const variance = isWarmSeason ? 7.0 : 5.5;
-                return Math.exp(-0.5 * Math.pow((meanC - tOpt) / variance, 2));
+            function calculateDayLength(lat, dayOfYear) {
+                const latRad = lat * Math.PI / 180;
+                const gamma = 2 * Math.PI * (dayOfYear - 1) / 365;
+                const decl = 0.006918
+                    - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma)
+                    - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma)
+                    - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);
+                const cosH = (-Math.sin(-0.8333 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl))
+                    / (Math.cos(latRad) * Math.cos(decl));
+                if (cosH < -1) return 24;
+                if (cosH > 1) return 0;
+                return (2 * Math.acos(cosH) * 180 / Math.PI) / 15;
             }
 
-            function findGrowingSeasonStart(times, mins, maxs, grassType, baseTemp) {
-                const GP_THRESHOLD = 0.10;
-                const SUSTAINED_DAYS = 7;
-                let consecutiveDays = 0;
+            function getSeasonParams(grassType, baseTemp) {
+                const preset = grassPresets[grassType];
+                if (preset && preset.greenUpBase !== undefined) return preset;
+                const isWarm = (baseTemp !== undefined && baseTemp >= 50);
+                return isWarm ? defaultSeasonParams.warm : defaultSeasonParams.cool;
+            }
+
+            function findGrowingSeasonStart(times, mins, maxs, precips, lat, grassType, baseTemp) {
+                const params = getSeasonParams(grassType, baseTemp);
+                let cumulativeGDD = 0;
                 for (let i = 0; i < times.length; i++) {
-                    if (!Number.isFinite(mins[i]) || !Number.isFinite(maxs[i])) {
-                        consecutiveDays = 0;
-                        continue;
-                    }
-                    const meanF = (mins[i] + maxs[i]) / 2;
-                    const gp = calculateGrowthPotential(meanF, grassType, baseTemp);
-                    if (gp >= GP_THRESHOLD) {
-                        consecutiveDays++;
-                        if (consecutiveDays >= SUSTAINED_DAYS) {
-                            return times[i - SUSTAINED_DAYS + 1];
+                    if (!Number.isFinite(mins[i]) || !Number.isFinite(maxs[i])) continue;
+                    cumulativeGDD += calculateGDD(mins[i], maxs[i], params.greenUpBase, 999);
+                    if (cumulativeGDD < params.greenUpGDD) continue;
+                    const doy = getDoy(new Date(times[i] + 'T00:00:00'));
+                    if (calculateDayLength(lat, doy) < params.minDayLength) continue;
+                    if (precips && params.seasonPrecipMin > 0) {
+                        const pStart = Math.max(0, i - params.seasonPrecipWindow + 1);
+                        let pTotal = 0;
+                        for (let p = pStart; p <= i; p++) {
+                            if (Number.isFinite(precips[p])) pTotal += precips[p];
                         }
-                    } else {
-                        consecutiveDays = 0;
+                        if (pTotal < params.seasonPrecipMin) continue;
                     }
+                    return times[i];
                 }
                 return null;
+            }
+
+            function diagnoseSeasonStatus(times, mins, maxs, precips, lat, grassType, baseTemp) {
+                const params = getSeasonParams(grassType, baseTemp);
+                let cumulativeGDD = 0;
+                for (let i = 0; i < times.length; i++) {
+                    if (Number.isFinite(mins[i]) && Number.isFinite(maxs[i])) {
+                        cumulativeGDD += calculateGDD(mins[i], maxs[i], params.greenUpBase, 999);
+                    }
+                }
+                const reasons = [];
+                if (cumulativeGDD < params.greenUpGDD) {
+                    reasons.push('green-up GDD ' + Math.round(cumulativeGDD) + '/' + params.greenUpGDD
+                        + ' (base ' + params.greenUpBase + '\u00B0F)');
+                }
+                const lastIdx = times.length - 1;
+                if (lastIdx >= 0) {
+                    const doy = getDoy(new Date(times[lastIdx] + 'T00:00:00'));
+                    const dayLen = calculateDayLength(lat, doy);
+                    if (dayLen < params.minDayLength) {
+                        reasons.push('day length ' + dayLen.toFixed(1) + 'h / ' + params.minDayLength + 'h needed');
+                    }
+                    if (precips && params.seasonPrecipMin > 0) {
+                        const pStart = Math.max(0, lastIdx - params.seasonPrecipWindow + 1);
+                        let pTotal = 0;
+                        for (let p = pStart; p <= lastIdx; p++) {
+                            if (Number.isFinite(precips[p])) pTotal += precips[p];
+                        }
+                        if (pTotal < params.seasonPrecipMin) {
+                            reasons.push('precip ' + pTotal.toFixed(2) + '" / '
+                                + params.seasonPrecipMin + '" needed in ' + params.seasonPrecipWindow + ' days');
+                        }
+                    }
+                }
+                if (reasons.length === 0) return 'conditions nearly met';
+                return reasons.join(' \u00B7 ');
             }
 
             async function handleClimatologyCalculation() {
