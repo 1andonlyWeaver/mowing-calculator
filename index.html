@@ -379,9 +379,15 @@
         document.addEventListener('DOMContentLoaded', function () {
             // --- LEAFLET MAP INITIALIZATION ---
             const map = L.map('map').setView([39.8283, -98.5795], 4); // Centered on the US
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+            const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+            const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+            const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>';
+
+            let tileLayer = L.tileLayer(isDark() ? TILE_DARK : TILE_LIGHT, { attribution: TILE_ATTR }).addTo(map);
+
+            function updateMapTiles() {
+                tileLayer.setUrl(isDark() ? TILE_DARK : TILE_LIGHT);
+            }
 
             let marker = L.marker([39.8283, -98.5795], { draggable: true }).addTo(map);
             
@@ -2066,6 +2072,7 @@
                     localStorage.setItem('mgdd_theme', theme);
                 }
                 applyTheme(theme);
+                updateMapTiles();
                 updateThemeButtons(theme);
                 if (_lastGddArgs) renderGddChart.apply(null, _lastGddArgs);
                 if (_lastClimoArgs) renderClimoChart.apply(null, _lastClimoArgs);
@@ -2081,6 +2088,7 @@
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
                 if (!localStorage.getItem('mgdd_theme')) {
                     applyTheme('system');
+                    updateMapTiles();
                 }
             });
 
