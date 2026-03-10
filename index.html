@@ -343,9 +343,9 @@
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Grass type presets</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
-                        <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 40&deg;F, Upper 86&deg;F, Target 250 MGDD</li>
-                        <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 86&deg;F, Target 200 MGDD</li>
-                        <li><strong>Zoysia Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 86&deg;F, Target 225 MGDD</li>
+                        <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 32&deg;F, Upper 86&deg;F, Target 330 MGDD</li>
+                        <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 95&deg;F, Target 225 MGDD</li>
+                        <li><strong>Zoysia Grass</strong> (warm-season) &mdash; Base 41&deg;F, Upper 86&deg;F, Target 310 MGDD</li>
                     </ul>
                     <p class="mt-1">These are starting points; adjust to match your lawn's actual growth rate.</p>
                 </section>
@@ -723,21 +723,21 @@
             // --- GRASS TYPE PRESETS ---
             const grassPresets = {
                 kentucky_bluegrass: {
-                    base: 40, upper: 86, target: 250, optimalPrecip: 0.75,
+                    base: 32, upper: 86, target: 330, optimalPrecip: 0.75,
                     greenUpBase: 32,       // GDD base temp for green-up accumulation (°F)
                     greenUpGDD: 200,       // cumulative GDD threshold for dormancy break
                     seasonPrecipMin: 0.25, // inches in prior 14 days
                     seasonPrecipWindow: 14
                 },
                 bermuda_grass: {
-                    base: 50, upper: 86, target: 200, optimalPrecip: 0.75,
+                    base: 50, upper: 95, target: 225, optimalPrecip: 0.75,
                     greenUpBase: 41,       // 5°C
                     greenUpGDD: 150,       // initial dormancy break (midpoint 125-200)
                     seasonPrecipMin: 0.50,
                     seasonPrecipWindow: 14
                 },
                 zoysia_grass: {
-                    base: 50, upper: 86, target: 225, optimalPrecip: 0.50,
+                    base: 41, upper: 86, target: 310, optimalPrecip: 0.50,
                     greenUpBase: 41,       // 5°C
                     greenUpGDD: 175,       // more recalcitrant than Bermuda
                     seasonPrecipMin: 0.40,
