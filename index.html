@@ -333,9 +333,12 @@
 
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Growing Season Detection</h3>
-                    <p>The tool detects when grass breaks spring dormancy using a two-gate model based on turfgrass phenology research:</p>
+                    <p>The tool detects when grass breaks spring dormancy using a layered guard-rail model. All five conditions must be met before mowing GDD begins to accumulate:</p>
                     <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
-                        <li><strong>Cumulative GDD threshold</strong> &mdash; Growing degree days accumulate from January 1 using a species-specific base temperature. Season starts when the thermal sum reaches the green-up threshold (e.g., 200 GDD base 32&deg;F for Kentucky Bluegrass).</li>
+                        <li><strong>Feb 15 biofix</strong> &mdash; No GDD accumulates before February 15. Meaningful turfgrass development does not occur before mid-February at any US latitude (matches MSU GDD Tracker).</li>
+                        <li><strong>Hard freeze reset</strong> &mdash; If a day&apos;s minimum temperature drops to 25&deg;F or below after the biofix, accumulated green-up GDD resets to zero. Hard freezes kill newly de-hardened tissue, undoing dormancy-break progress.</li>
+                        <li><strong>Day-length floor</strong> &mdash; Season cannot start until daylight at your latitude exceeds 10 hours (a latitude-dependent astronomical constraint, not species-specific).</li>
+                        <li><strong>Cumulative GDD threshold</strong> &mdash; After the above gates pass, GDD accumulates using a species-specific base temperature. Season starts when the thermal sum reaches the green-up threshold (e.g., 200 GDD base 32&deg;F for Kentucky Bluegrass).</li>
                         <li><strong>Precipitation check</strong> &mdash; Minimum recent rainfall is required, since thermal accumulation alone cannot induce sustainable green-up without adequate soil moisture.</li>
                     </ul>
                 </section>
@@ -931,7 +934,7 @@
                          throw new Error("Weather data could not be retrieved. Please try again.");
                     }
 
-                    // --- GROWING SEASON GATE (cumulative GDD + photoperiod + precipitation) ---
+                    // --- GROWING SEASON GATE (Feb 15 biofix + hard freeze reset + day-length floor + cumulative GDD + precipitation) ---
                     const grassType = grassTypeSelect ? grassTypeSelect.value : 'custom';
                     const currentYear = getYesterdayString().slice(0, 4);
                     const jan1Current = currentYear + '-01-01';
@@ -951,7 +954,7 @@
                         ? forecastData.daily.precipitation_sum.map(mm => (mm > 0) ? mm / 25.4 : 0)
                         : new Array(forecastData.daily.time.length).fill(0);
                     const combinedPrecips = (seasonPrecips || []).concat(forecastPrecipsInches);
-                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, combinedPrecips, grassType, baseT);
+                    const growingSeasonStart = findGrowingSeasonStart(combinedTimes, combinedMins, combinedMaxs, combinedPrecips, grassType, baseT, lat);
                     const lastMowedDateObj = new Date(lastMowed + 'T00:00:00');
                     let effectiveStart;
                     if (!growingSeasonStart) {
@@ -966,7 +969,7 @@
                     const growingSeasonInfoEl = document.getElementById('growingSeasonInfo');
                     if (growingSeasonInfoEl) {
                         if (!growingSeasonStart) {
-                            const statusDetail = diagnoseSeasonStatus(combinedTimes, combinedMins, combinedMaxs, combinedPrecips, grassType, baseT);
+                            const statusDetail = diagnoseSeasonStatus(combinedTimes, combinedMins, combinedMaxs, combinedPrecips, grassType, baseT, lat);
                             growingSeasonInfoEl.textContent = 'Growing season has not started yet \u2014 ' + statusDetail;
                             growingSeasonInfoEl.classList.remove('hidden');
                         } else if (effectiveStart > lastMowedDateObj) {
@@ -1719,6 +1722,17 @@
                 return Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1; // 1..366
             }
 
+            // Returns hours of daylight for a given latitude (degrees) and day-of-year (1..366).
+            // Uses the standard CBM astronomical formula.
+            function dayLength(lat, doy) {
+                const latRad = lat * Math.PI / 180;
+                const declRad = -23.45 * Math.PI / 180 * Math.cos(2 * Math.PI * (doy + 10) / 365);
+                const cosHa = -Math.tan(latRad) * Math.tan(declRad);
+                if (cosHa <= -1) return 24; // polar day
+                if (cosHa >= 1) return 0;   // polar night
+                return 2 * Math.acos(cosHa) * 180 / Math.PI / 15;
+            }
+
             function getSeasonParams(grassType, baseTemp) {
                 const preset = grassPresets[grassType];
                 if (preset && preset.greenUpBase !== undefined) return preset;
@@ -1726,11 +1740,23 @@
                 return isWarm ? defaultSeasonParams.warm : defaultSeasonParams.cool;
             }
 
-            function findGrowingSeasonStart(times, mins, maxs, precips, grassType, baseTemp) {
+            function findGrowingSeasonStart(times, mins, maxs, precips, grassType, baseTemp, lat) {
+                const BIOFIX_MMDD = '02-15';
+                const FREEZE_RESET_F = 25;
+                const MIN_DAY_HOURS = 10.0;
                 const params = getSeasonParams(grassType, baseTemp);
                 let cumulativeGDD = 0;
                 for (let i = 0; i < times.length; i++) {
+                    // Gate 1: biofix — no accumulation before Feb 15
+                    if (times[i].slice(5) < BIOFIX_MMDD) continue;
                     if (!Number.isFinite(mins[i]) || !Number.isFinite(maxs[i])) continue;
+                    // Gate 2: hard freeze reset — ≤25°F kills de-hardened tissue
+                    if (mins[i] <= FREEZE_RESET_F) { cumulativeGDD = 0; continue; }
+                    // Gate 3: day-length floor — 10 hours minimum
+                    if (lat !== undefined) {
+                        const doy = getDoy(new Date(times[i] + 'T00:00:00'));
+                        if (dayLength(lat, doy) < MIN_DAY_HOURS) continue;
+                    }
                     cumulativeGDD += calculateGDD(mins[i], maxs[i], params.greenUpBase, 999);
                     if (cumulativeGDD < params.greenUpGDD) continue;
                     if (precips && params.seasonPrecipMin > 0) {
@@ -1746,15 +1772,42 @@
                 return null;
             }
 
-            function diagnoseSeasonStatus(times, mins, maxs, precips, grassType, baseTemp) {
+            function diagnoseSeasonStatus(times, mins, maxs, precips, grassType, baseTemp, lat) {
+                const BIOFIX_MMDD = '02-15';
+                const FREEZE_RESET_F = 25;
+                const MIN_DAY_HOURS = 10.0;
                 const params = getSeasonParams(grassType, baseTemp);
-                let cumulativeGDD = 0;
-                for (let i = 0; i < times.length; i++) {
-                    if (Number.isFinite(mins[i]) && Number.isFinite(maxs[i])) {
-                        cumulativeGDD += calculateGDD(mins[i], maxs[i], params.greenUpBase, 999);
+                const reasons = [];
+
+                // Check biofix against the last date in the series
+                const lastDate = times.length > 0 ? times[times.length - 1] : '';
+                if (lastDate && lastDate.slice(5) < BIOFIX_MMDD) {
+                    reasons.push('before Feb 15 accumulation start');
+                    return reasons.join(' \u00B7 ');
+                }
+
+                // Check day-length gate at the last date
+                if (lat !== undefined && lastDate) {
+                    const doy = getDoy(new Date(lastDate + 'T00:00:00'));
+                    const dl = dayLength(lat, doy);
+                    if (dl < MIN_DAY_HOURS) {
+                        reasons.push('day length ' + dl.toFixed(1) + 'h / ' + MIN_DAY_HOURS + 'h minimum');
                     }
                 }
-                const reasons = [];
+
+                // Accumulate GDD with same biofix + freeze-reset logic
+                let cumulativeGDD = 0;
+                for (let i = 0; i < times.length; i++) {
+                    if (times[i].slice(5) < BIOFIX_MMDD) continue;
+                    if (!Number.isFinite(mins[i]) || !Number.isFinite(maxs[i])) continue;
+                    if (mins[i] <= FREEZE_RESET_F) { cumulativeGDD = 0; continue; }
+                    if (lat !== undefined) {
+                        const doy = getDoy(new Date(times[i] + 'T00:00:00'));
+                        if (dayLength(lat, doy) < MIN_DAY_HOURS) continue;
+                    }
+                    cumulativeGDD += calculateGDD(mins[i], maxs[i], params.greenUpBase, 999);
+                }
+
                 if (cumulativeGDD < params.greenUpGDD) {
                     reasons.push('green-up GDD ' + Math.round(cumulativeGDD) + '/' + params.greenUpGDD
                         + ' (base ' + params.greenUpBase + '\u00B0F)');
