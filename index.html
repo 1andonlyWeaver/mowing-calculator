@@ -159,6 +159,11 @@
                                 <span class="text-sm text-gray-700 dark:text-gray-300">Lawn is irrigated</span>
                                 <span class="text-xs text-gray-400 dark:text-gray-500">(skip precipitation adjustments)</span>
                             </label>
+                            <label class="mt-2 inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="climateNormalsToggle" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Extend with climate normals</span>
+                                <span class="text-xs text-gray-400 dark:text-gray-500">(predict beyond 15-day forecast)</span>
+                            </label>
                         </div>
 
                         <!-- MGDD Thresholds -->
@@ -807,6 +812,10 @@
             if (irrigatedToggleEl) {
                 irrigatedToggleEl.addEventListener('change', saveSettingsDebounced);
             }
+            const climateNormalsToggleEl = document.getElementById('climateNormalsToggle');
+            if (climateNormalsToggleEl) {
+                climateNormalsToggleEl.addEventListener('change', saveSettingsDebounced);
+            }
 
             // --- LOG MOW BUTTON ---
             const logMowBtn = document.getElementById('logMowBtn');
@@ -911,6 +920,38 @@
                 return 0.5 + 0.5 * Math.min(Math.max(0, total / scaledOptimal), 1.0);
             }
 
+            function computeClimateNormals(normalsData, baseT, upperT) {
+                const sumMin = new Array(366).fill(0);
+                const sumMax = new Array(366).fill(0);
+                const cnt = new Array(366).fill(0);
+                for (let i = 0; i < normalsData.daily.time.length; i++) {
+                    const d = new Date(normalsData.daily.time[i] + 'T00:00:00');
+                    if (d.getMonth() === 1 && d.getDate() === 29) continue;
+                    const doy = getDoy(d);
+                    const tmin = normalsData.daily.temperature_2m_min[i];
+                    const tmax = normalsData.daily.temperature_2m_max[i];
+                    if (Number.isFinite(tmin) && Number.isFinite(tmax)) {
+                        sumMin[doy] += tmin;
+                        sumMax[doy] += tmax;
+                        cnt[doy] += 1;
+                    }
+                }
+                const avgMin = [], avgMax = [];
+                for (let doy = 1; doy <= 365; doy++) {
+                    if (cnt[doy] > 0) {
+                        avgMin.push(sumMin[doy] / cnt[doy]);
+                        avgMax.push(sumMax[doy] / cnt[doy]);
+                    } else {
+                        avgMin.push(avgMin.length ? avgMin[avgMin.length - 1] : baseT);
+                        avgMax.push(avgMax.length ? avgMax[avgMax.length - 1] : baseT + 10);
+                    }
+                }
+                const dailyGdd = avgMin.map(function(minT, idx) {
+                    return calculateGDD(minT, avgMax[idx], baseT, upperT);
+                });
+                return { avgMin: avgMin, avgMax: avgMax, dailyGdd: dailyGdd };
+            }
+
             async function handleCalculation() {
                 if (!validateInputs()) return;
                 lastCalcState = null;
@@ -996,6 +1037,8 @@
                     const chartLabels = [];
                     const observedValues = [];
                     const forecastValues = [];
+                    const normalsValues = [];
+                    let normalsUsed = false;
                     let crossingDateHistorical = null;
                     const lowerTarget = targetGDD * 0.90;
                     const upperTarget = targetGDD * 1.10;
@@ -1115,21 +1158,80 @@
                         }
                     });
 
+                    // --- CLIMATE NORMALS EXTENSION ---
+                    const climateNormalsToggle = document.getElementById('climateNormalsToggle');
+                    const useNormals = climateNormalsToggle ? climateNormalsToggle.checked : false;
+
+                    if (!estimatedMowDate && useNormals) {
+                        const normalsRawData = await fetchAcisData(lat, lon, '1991-01-01', '2020-12-31');
+                        if (normalsRawData.daily && Array.isArray(normalsRawData.daily.time)) {
+                            const normals = computeClimateNormals(normalsRawData, baseT, upperT);
+                            normalsUsed = true;
+
+                            const lastForecastDate = forecastData.daily.time[forecastData.daily.time.length - 1];
+                            let extDate = new Date(lastForecastDate + 'T00:00:00');
+                            let normalsAccumulation = forecastAccumulation;
+
+                            // Pad normalsValues to align with chart, overlapping at last forecast point
+                            const padLen = chartLabels.length - 1;
+                            normalsValues.push(...new Array(padLen).fill(null));
+                            normalsValues.push(forecastAccumulation);
+
+                            const maxExtensionDays = 365;
+                            for (let d = 0; d < maxExtensionDays; d++) {
+                                extDate.setDate(extDate.getDate() + 1);
+                                const doy = getDoy(extDate);
+                                const dailyGDD = normals.dailyGdd[(doy - 1) % 365];
+                                normalsAccumulation += dailyGDD;
+
+                                const displayDate = extDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                chartLabels.push(displayDate);
+                                normalsValues.push(normalsAccumulation);
+
+                                forecastRows.push({
+                                    displayDate: displayDate,
+                                    minF: normals.avgMin[(doy - 1) % 365],
+                                    maxF: normals.avgMax[(doy - 1) % 365],
+                                    precipIn: null,
+                                    dailyGDD: dailyGDD,
+                                    accumulation: normalsAccumulation,
+                                    weatherCode: null,
+                                    isHighlighted: normalsAccumulation >= targetGDD && !estimatedMowDate,
+                                    isNormals: true
+                                });
+
+                                if (!windowStartDate && normalsAccumulation >= lowerTarget) {
+                                    windowStartDate = extDate.toISOString().split('T')[0];
+                                }
+                                if (!windowEndDate && normalsAccumulation >= upperTarget) {
+                                    windowEndDate = extDate.toISOString().split('T')[0];
+                                }
+                                if (normalsAccumulation >= targetGDD && !estimatedMowDate) {
+                                    estimatedMowDate = extDate.toISOString().split('T')[0];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     renderForecastTable(forecastRows, targetGDD);
 
                     if (estimatedMowDate) {
                         const dateObj = new Date(estimatedMowDate + 'T00:00:00');
-                        resultDateEl.textContent = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                        const dateText = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                        resultDateEl.textContent = normalsUsed
+                            ? dateText + ' (based on climate normals)'
+                            : dateText;
                         const todayMidnight = new Date();
                         todayMidnight.setHours(0,0,0,0);
                         const diffDays = Math.round((dateObj - todayMidnight) / (1000 * 60 * 60 * 24));
                         if (daysUntilEl) daysUntilEl.textContent = String(diffDays);
                     } else {
-                        resultDateEl.textContent = "Beyond forecast range";
+                        resultDateEl.textContent = useNormals ? "Beyond climate normals range" : "Beyond forecast range";
                         if (daysUntilEl) daysUntilEl.textContent = 'N/A';
                     }
 
-                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD, lowerTarget, upperTarget, dormancyEndIndex);
+                    renderGddChart(chartLabels, observedValues, forecastValues, targetGDD, lowerTarget, upperTarget, dormancyEndIndex, normalsValues);
                     showResults();
 
                     // --- Moisture Status Display ---
@@ -1214,7 +1316,8 @@
                         targetGDD,
                         forecastRows,
                         weatherStrips,
-                        moistureData: { irrigated, latestScaleFactor, latestPrecip7day }
+                        moistureData: { irrigated, latestScaleFactor, latestPrecip7day },
+                        normalsUsed: normalsUsed
                     };
 
                     saveSettings();
@@ -1237,15 +1340,25 @@
             
             function renderForecastTable(rows, targetGDD) {
                 let html = '<div class="font-semibold grid grid-cols-6 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
+                let normalsSeparatorShown = false;
                 rows.forEach(function(row) {
+                    if (row.isNormals && !normalsSeparatorShown) {
+                        normalsSeparatorShown = true;
+                        html += '<div class="col-span-6 text-xs text-amber-600 dark:text-amber-400 font-semibold pt-2 pb-1 border-t border-amber-300 dark:border-amber-700 mt-1">Climate Normals (30-yr avg)</div>';
+                    }
+                    const highlightClass = row.isHighlighted ? 'bg-green-100 dark:bg-green-900/30 rounded font-bold' : '';
+                    const normalsClass = row.isNormals ? 'italic text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20' : '';
+                    const tempPrefix = row.isNormals ? 'Avg ' : '';
+                    const precipDisplay = row.isNormals ? '\u2014' : toDisplayPrecip(row.precipIn).toFixed(unitSystem === 'metric' ? 1 : 2) + ' ' + precipUnit();
+                    const weatherDisplay = row.isNormals ? '\u2014' : getWeatherInfo(row.weatherCode).emoji;
                     html += `
-                        <div class="grid grid-cols-6 gap-2 py-1 ${row.isHighlighted ? 'bg-green-100 dark:bg-green-900/30 rounded font-bold' : ''}">
+                        <div class="grid grid-cols-6 gap-2 py-1 ${highlightClass} ${normalsClass}">
                             <div>${row.displayDate}</div>
-                            <div>${Math.round(toDisplayTemp(row.minF))}${tempUnit()}/${Math.round(toDisplayTemp(row.maxF))}${tempUnit()}</div>
-                            <div>${toDisplayPrecip(row.precipIn).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}</div>
+                            <div>${tempPrefix}${Math.round(toDisplayTemp(row.minF))}${tempUnit()}/${Math.round(toDisplayTemp(row.maxF))}${tempUnit()}</div>
+                            <div>${precipDisplay}</div>
                             <div>${row.dailyGDD.toFixed(1)}</div>
                             <div>${row.accumulation.toFixed(1)}</div>
-                            <div>${getWeatherInfo(row.weatherCode).emoji}</div>
+                            <div>${weatherDisplay}</div>
                         </div>`;
                 });
                 forecastBreakdownEl.innerHTML = html;
@@ -1312,8 +1425,8 @@
                 moistureStatusEl.classList.remove('hidden');
             }
 
-            function renderGddChart(labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex) {
-                _lastGddArgs = [labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex];
+            function renderGddChart(labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex, normalsData) {
+                _lastGddArgs = [labels, observedData, forecastData, target, lowerTarget, upperTarget, dormancyEndIndex, normalsData];
                 if (gddChartInstance) {
                     gddChartInstance.destroy();
                 }
@@ -1390,7 +1503,16 @@
                             borderDash: [5, 5],
                             fill: false,
                             tension: 0.1
-                        }]
+                        }].concat(normalsData && normalsData.length ? [{
+                            label: 'Climate Normals Extension',
+                            data: normalsData,
+                            borderColor: 'rgb(245, 158, 11)',
+                            backgroundColor: 'rgba(245, 158, 11, 0.3)',
+                            borderDash: [3, 3],
+                            fill: false,
+                            tension: 0.1,
+                            pointRadius: 0
+                        }] : [])
                     },
                     options: {
                         responsive: true,
@@ -1532,6 +1654,7 @@
                         targetGDD: targetGddInput.value,
                         lastMowedDate: lastMowedDateInput.value,
                         irrigated: document.getElementById('irrigatedToggle') ? document.getElementById('irrigatedToggle').checked : false,
+                        climateNormals: document.getElementById('climateNormalsToggle') ? document.getElementById('climateNormalsToggle').checked : false,
                         unitSystem: unitSystem
                     };
                     localStorage.setItem('mgdd_user_settings', JSON.stringify(settings));
@@ -1562,6 +1685,8 @@
                     if (s.lastMowedDate) lastMowedDateInput.value = s.lastMowedDate;
                     const irrigatedEl = document.getElementById('irrigatedToggle');
                     if (irrigatedEl && s.irrigated !== undefined) irrigatedEl.checked = s.irrigated;
+                    const climateNormalsEl = document.getElementById('climateNormalsToggle');
+                    if (climateNormalsEl && s.climateNormals !== undefined) climateNormalsEl.checked = s.climateNormals;
                     // Update map marker
                     const lat = parseFloat(s.lat);
                     const lon = parseFloat(s.lon);
@@ -1866,51 +1991,8 @@
                     if (!normalsData.daily || !Array.isArray(normalsData.daily.time)) {
                         throw new Error('Normals data could not be retrieved. Please try again.');
                     }
-                    const sumMin = new Array(366).fill(0); // index by DOY
-                    const sumMax = new Array(366).fill(0);
-                    const count = new Array(366).fill(0);
-                    for (let i = 0; i < normalsData.daily.time.length; i++) {
-                        const dateStr = normalsData.daily.time[i];
-                        const d = new Date(dateStr + 'T00:00:00');
-                        const m = d.getMonth();
-                        const day = d.getDate();
-                        // Skip Feb 29 to keep 365-day climatology
-                        if (!(m === 1 && day === 29)) {
-                            const doy = getDoy(d); // 1..366 (but 60 skipped on leap years)
-                            const tmin = normalsData.daily.temperature_2m_min[i];
-                            const tmax = normalsData.daily.temperature_2m_max[i];
-                            if (Number.isFinite(tmin) && Number.isFinite(tmax)) {
-                                sumMin[doy] += tmin;
-                                sumMax[doy] += tmax;
-                                count[doy] += 1;
-                            }
-                        }
-                        if (i % 1000 === 0) {
-                            await waitForNextFrame();
-                        }
-                    }
-
-                    // Build 1..365 arrays (skip index 0)
-                    const avgMin = [];
-                    const avgMax = [];
-                    for (let doy = 1; doy <= 365; doy++) {
-                        if (count[doy] > 0) {
-                            avgMin.push(sumMin[doy] / count[doy]);
-                            avgMax.push(sumMax[doy] / count[doy]);
-                        } else {
-                            // Fill gaps (e.g., if any) with nearest previous available
-                            const lastMin = avgMin.length ? avgMin[avgMin.length - 1] : baseT;
-                            const lastMax = avgMax.length ? avgMax[avgMax.length - 1] : baseT + 10;
-                            avgMin.push(lastMin);
-                            avgMax.push(lastMax);
-                        }
-                    }
-
-                    // Compute daily normal MGDD per DOY 0..364
-                    const dailyGdd = avgMin.map(function(minT, idx) {
-                        const maxT = avgMax[idx];
-                        return calculateGDD(minT, maxT, baseT, upperT);
-                    });
+                    const normals = computeClimateNormals(normalsData, baseT, upperT);
+                    const dailyGdd = normals.dailyGdd;
 
                     // Precompute cumulative over two cycles for wrap-around
                     const twoYear = dailyGdd.concat(dailyGdd);
