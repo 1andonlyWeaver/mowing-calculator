@@ -82,6 +82,132 @@
         html.dark .spinner {
             border-top-color: #60a5fa;
         }
+
+        /* --- Preferred Mow Days: pill selectors --- */
+        .pref-day-pill input[type="checkbox"] {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            white-space: nowrap;
+        }
+        .pref-day-pill span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            border: 1.5px solid #d1d5db;
+            color: #6b7280;
+            background: #f9fafb;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+            user-select: none;
+        }
+        .pref-day-pill span:hover {
+            border-color: #86efac;
+            color: #15803d;
+            background: #f0fdf4;
+        }
+        .pref-day-pill input[type="checkbox"]:checked + span,
+        .pref-day-pill.active span {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: #fff;
+            box-shadow: 0 1px 4px rgba(22,163,74,0.25);
+        }
+        html.dark .pref-day-pill span {
+            background: #374151;
+            border-color: #4b5563;
+            color: #9ca3af;
+        }
+        html.dark .pref-day-pill span:hover {
+            border-color: #4ade80;
+            color: #4ade80;
+            background: #1f2937;
+        }
+        html.dark .pref-day-pill input[type="checkbox"]:checked + span,
+        html.dark .pref-day-pill.active span {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: #fff;
+        }
+
+        /* --- Require toggle switch --- */
+        .require-toggle input[type="checkbox"] {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+        }
+        .require-toggle-track {
+            display: inline-flex;
+            align-items: center;
+            width: 2.25rem;
+            height: 1.25rem;
+            border-radius: 9999px;
+            background: #d1d5db;
+            transition: background 0.2s;
+            cursor: pointer;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .require-toggle-thumb {
+            position: absolute;
+            left: 0.125rem;
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .require-toggle input[type="checkbox"]:checked ~ .require-toggle-track {
+            background: #16a34a;
+        }
+        .require-toggle input[type="checkbox"]:checked ~ .require-toggle-track .require-toggle-thumb {
+            transform: translateX(1rem);
+        }
+        html.dark .require-toggle-track {
+            background: #4b5563;
+        }
+        html.dark .require-toggle input[type="checkbox"]:checked ~ .require-toggle-track {
+            background: #16a34a;
+        }
+
+        /* --- Best day recommendation card --- */
+        #bestDayRecommendation .bdr-day-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #15803d;
+            line-height: 1.2;
+        }
+        html.dark #bestDayRecommendation .bdr-day-name {
+            color: #4ade80;
+        }
+        #bestDayRecommendation .bdr-reason-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.65rem;
+            font-weight: 500;
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        html.dark #bestDayRecommendation .bdr-reason-chip {
+            background: rgba(22,163,74,0.15);
+            color: #86efac;
+            border-color: rgba(22,163,74,0.3);
+        }
     </style>
     <script>
         (function() {
@@ -218,6 +344,48 @@
                     </div>
                 </div>
 
+                <!-- Preferred Mow Days -->
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md">
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Preferred Mow Days</h3>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <label class="pref-day-pill cursor-pointer" for="prefDay-1">
+                            <input type="checkbox" id="prefDay-1">
+                            <span>Mon</span>
+                        </label>
+                        <label class="pref-day-pill cursor-pointer" for="prefDay-2">
+                            <input type="checkbox" id="prefDay-2">
+                            <span>Tue</span>
+                        </label>
+                        <label class="pref-day-pill cursor-pointer" for="prefDay-3">
+                            <input type="checkbox" id="prefDay-3">
+                            <span>Wed</span>
+                        </label>
+                        <label class="pref-day-pill cursor-pointer" for="prefDay-4">
+                            <input type="checkbox" id="prefDay-4">
+                            <span>Thu</span>
+                        </label>
+                        <label class="pref-day-pill cursor-pointer" for="prefDay-5">
+                            <input type="checkbox" id="prefDay-5">
+                            <span>Fri</span>
+                        </label>
+                        <label class="pref-day-pill cursor-pointer" for="prefDay-6">
+                            <input type="checkbox" id="prefDay-6" checked>
+                            <span>Sat</span>
+                        </label>
+                        <label class="pref-day-pill cursor-pointer" for="prefDay-0">
+                            <input type="checkbox" id="prefDay-0" checked>
+                            <span>Sun</span>
+                        </label>
+                    </div>
+                    <label class="require-toggle mt-3 flex items-center gap-2 cursor-pointer w-fit">
+                        <input type="checkbox" id="requirePreferredDays">
+                        <div class="require-toggle-track">
+                            <div class="require-toggle-thumb"></div>
+                        </div>
+                        <span class="text-xs text-gray-600 dark:text-gray-400 select-none">Only recommend on these days</span>
+                    </label>
+                </div>
+
                 <!-- Action Button -->
                 <button id="calculateBtn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-transform transform hover:scale-105">
                     Estimate Next Mow Date
@@ -234,7 +402,7 @@
                         <p id="resultDate" class="text-3xl font-bold text-green-600"></p>
                         <p id="mowWindow" class="text-sm text-gray-600 dark:text-gray-400 hidden"></p>
                         <p id="growingSeasonInfo" class="text-sm text-gray-600 dark:text-gray-400 hidden"></p>
-                        <div id="weekendSuggestion" class="hidden bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 text-sm text-yellow-800 dark:text-yellow-300"></div>
+                        <div id="bestDayRecommendation" class="hidden bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl p-3 text-sm text-green-800 dark:text-green-300"></div>
                         <p class="text-gray-600 dark:text-gray-400">Days until next mow:</p>
                         <p id="daysUntil" class="text-2xl font-semibold text-gray-800 dark:text-gray-100"></p>
                         <hr class="my-4 dark:border-gray-700">
@@ -409,7 +577,7 @@
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Results and mowing guidance</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
                         <li><strong>Mow window</strong> &mdash; The optimal mow window spans 90&ndash;110% of your target MGDD. The estimated mow date is when accumulation crosses 100%; mowing anywhere in this range is appropriate.</li>
-                        <li><strong>Weekend suggestion</strong> &mdash; If the estimated mow date falls on a weekday, the tool suggests the nearest weekend day and notes whether it falls within the mow window.</li>
+                        <li><strong>Best day to mow</strong> &mdash; After calculating your estimated mow date, the app recommends the best day to mow within your mow window. It scores each candidate day on temperature comfort (ideal 60&ndash;80&deg;F), precipitation risk, your preferred mow days, and proximity to the agronomically ideal date. You can select preferred days of the week in the <em>Preferred Mow Days</em> input, and optionally enable &ldquo;Only recommend on these days&rdquo; to restrict the recommendation to only those days.</li>
                         <li><strong>Weather strip</strong> &mdash; A 5-day strip centered on the mow date shows temperature, precipitation, wind, and weather icons. Alerts flag rain on mow day (with probability), heavy rain nearby, or high winds.</li>
                         <li><strong>Mow history</strong> &mdash; Click <strong>Log Today as Mowed</strong> to record a mow date. History is stored locally in your browser and can be cleared at any time. Logging a mow updates the last mow date field automatically.</li>
                     </ul>
@@ -781,6 +949,7 @@
                     if (lastCalcState.weatherStrips) {
                         renderWeatherStrip(lastCalcState.weatherStrips);
                     }
+                    renderBestDayRecommendation(lastCalcState.bestDayResult, lastCalcState.estimatedMowDate);
                 }
             }
 
@@ -1196,6 +1365,7 @@
                         const precipProb = forecastData.daily.precipitation_probability_max ? forecastData.daily.precipitation_probability_max[i] : null;
 
                         forecastRows.push({
+                            isoDate: date,
                             displayDate,
                             minF: forecastData.daily.temperature_2m_min[i],
                             maxF: forecastData.daily.temperature_2m_max[i],
@@ -1314,29 +1484,16 @@
                         }
                     }
 
-                    // --- Weekend Suggestion ---
-                    const weekendEl = document.getElementById('weekendSuggestion');
-                    if (weekendEl && estimatedMowDate) {
-                        const mowDateObj = new Date(estimatedMowDate + 'T00:00:00');
-                        const dayOfWeek = mowDateObj.getDay();
-                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                            const nearestWeekend = getNearestWeekend(estimatedMowDate);
-                            const weekendLabel = nearestWeekend.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-                            let inWindow = false;
-                            if (windowStartDate && windowEndDate) {
-                                const ws = new Date(windowStartDate + 'T00:00:00');
-                                const we = new Date(windowEndDate + 'T00:00:00');
-                                inWindow = nearestWeekend >= ws && nearestWeekend <= we;
-                            }
-                            const statusText = inWindow ? '(within mow window)' : '(outside optimal window)';
-                            weekendEl.textContent = `Nearest weekend: ${weekendLabel} ${statusText}`;
-                            weekendEl.classList.remove('hidden');
-                        } else {
-                            weekendEl.classList.add('hidden');
-                        }
-                    } else if (weekendEl) {
-                        weekendEl.classList.add('hidden');
-                    }
+                    // --- Best Day to Mow ---
+                    const preferredDays = [0,1,2,3,4,5,6].filter(function(d) {
+                        const el = document.getElementById('prefDay-' + d);
+                        return el && el.checked;
+                    });
+                    const requirePreferred = document.getElementById('requirePreferredDays')
+                        ? document.getElementById('requirePreferredDays').checked
+                        : false;
+                    const bestDayResult = selectBestMowDay(forecastRows, estimatedMowDate, windowStartDate, windowEndDate, preferredDays, requirePreferred);
+                    renderBestDayRecommendation(bestDayResult, estimatedMowDate);
 
                     // --- Weather Context ---
                     let weatherStrips = null;
@@ -1379,7 +1536,11 @@
                         forecastRows,
                         weatherStrips,
                         moistureData: { irrigated, latestScaleFactor, latestPrecip7day },
-                        normalsUsed: normalsUsed
+                        normalsUsed: normalsUsed,
+                        bestDayResult,
+                        estimatedMowDate,
+                        windowStartDate,
+                        windowEndDate
                     };
 
                     saveSettings();
@@ -1400,6 +1561,74 @@
                 }
             }
             
+            function renderBestDayRecommendation(bestDayResult, estimatedMowDate) {
+                const el = document.getElementById('bestDayRecommendation');
+                if (!el) return;
+
+                if (!estimatedMowDate || !bestDayResult) {
+                    el.classList.add('hidden');
+                    return;
+                }
+
+                if (bestDayResult.normals) {
+                    el.innerHTML = '<div class="flex items-center gap-2"><span style="font-size:1.1rem">📅</span><div><div class="text-xs font-medium uppercase tracking-wide opacity-60 mb-0.5">Best Day to Mow</div><div class="text-xs opacity-70">Forecast data unavailable — estimated date is beyond the 15-day outlook.</div></div></div>';
+                    el.classList.remove('hidden');
+                    return;
+                }
+
+                if (bestDayResult.noPreferredDays) {
+                    const estLabel = new Date(bestDayResult.estimatedMowDate + 'T00:00:00')
+                        .toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+                    el.innerHTML = '<div class="flex items-start gap-2"><span style="font-size:1.1rem;flex-shrink:0">📅</span><div><div class="text-xs font-medium uppercase tracking-wide mb-0.5">Best Day to Mow</div><div class="text-xs opacity-80">No preferred days fall in the mow window.</div><div class="text-xs opacity-60 mt-0.5">Consider mowing on ' + estLabel + ' or widening your preferred days.</div></div></div>';
+                    el.classList.remove('hidden');
+                    return;
+                }
+
+                const row = bestDayResult.row;
+                const bestDate = new Date(row.isoDate + 'T00:00:00');
+                const bestLabel = bestDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+
+                // Build all reasons fresh at render time so unit conversions are always current
+                const precipIn = row.precipIn || 0;
+                const precipProb = row.precipProb != null ? row.precipProb : 0;
+                const allReasons = [];
+                if (precipProb <= 20 && precipIn < 0.1) {
+                    allReasons.push('low rain chance (' + precipProb + '%)');
+                } else if (precipProb > 60 || precipIn >= 0.25) {
+                    const precipDisplay = toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 0 : 2);
+                    allReasons.push('rain expected (' + precipProb + '%, ' + precipDisplay + precipUnit() + ')');
+                } else {
+                    allReasons.push(precipProb + '% rain chance');
+                }
+                if (bestDayResult.isPreferred) allReasons.push('preferred day');
+                allReasons.push('high of ' + toDisplayTemp(row.maxF) + tempUnit());
+
+                const chips = allReasons.map(function(r) {
+                    return '<span class="bdr-reason-chip">' + r + '</span>';
+                }).join('');
+
+                let html = '<div class="flex items-start gap-2">';
+                html += '<span style="font-size:1.25rem;line-height:1;flex-shrink:0;margin-top:0.1rem;">📅</span>';
+                html += '<div class="flex-1 min-w-0">';
+                html += '<div class="text-xs text-green-700 dark:text-green-400 font-medium uppercase tracking-wide mb-0.5">Best Day to Mow</div>';
+                html += '<div class="bdr-day-name">' + bestLabel + '</div>';
+                html += '<div class="mt-1.5 flex flex-wrap gap-1">' + chips + '</div>';
+
+                if (bestDayResult.isBestDifferentFromEstimated) {
+                    const estLabel = new Date(estimatedMowDate + 'T00:00:00')
+                        .toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    html += '<div class="mt-1.5 text-xs text-green-700 dark:text-green-500 opacity-75">Estimated date: ' + estLabel + ' — ' + bestLabel.split(',')[0] + ' has better conditions.</div>';
+                }
+
+                if (bestDayResult.isNonPreferred) {
+                    html += '<div class="mt-1 text-xs opacity-60 italic">(No preferred days available in this window)</div>';
+                }
+
+                html += '</div></div>';
+                el.innerHTML = html;
+                el.classList.remove('hidden');
+            }
+
             function renderForecastTable(rows, targetGDD) {
                 let html = '<div class="font-semibold grid grid-cols-7 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Chance</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
                 let normalsSeparatorShown = false;
@@ -1669,37 +1898,93 @@
                 return await response.json();
             }
 
-            // --- HELPER FUNCTIONS ---
-            function getNearestWeekend(dateStr) {
-                const d = new Date(dateStr + 'T00:00:00');
-                const dow = d.getDay();
-                // Find nearest Saturday or Sunday
-                const candidates = [];
-                // Previous Saturday
-                const prevSat = new Date(d); prevSat.setDate(d.getDate() - ((dow + 1) % 7));
-                candidates.push(prevSat);
-                // Next Saturday
-                const nextSat = new Date(d); nextSat.setDate(d.getDate() + (6 - dow));
-                candidates.push(nextSat);
-                // Previous Sunday
-                const prevSun = new Date(d); prevSun.setDate(d.getDate() - dow);
-                candidates.push(prevSun);
-                // Next Sunday
-                const nextSun = new Date(d); nextSun.setDate(d.getDate() + (7 - dow));
-                candidates.push(nextSun);
+            // --- BEST DAY SCORING ---
+            function scoreMowDay(row, estimatedMowDate, preferredDays) {
+                // Temperature score: 1.0 in 60-80°F, tapers to 0 at 40°F and 100°F
+                const maxF = row.maxF;
+                const distFromRange = Math.max(0, 40 - maxF, maxF - 80);
+                const tempScore = Math.max(0, 1 - distFromRange / 20);
 
-                let best = candidates[0];
-                let bestDiff = Math.abs(candidates[0] - d);
-                for (let ci = 1; ci < candidates.length; ci++) {
-                    const diff = Math.abs(candidates[ci] - d);
-                    if (diff < bestDiff || (diff === bestDiff && candidates[ci] < best)) {
-                        best = candidates[ci];
-                        bestDiff = diff;
-                    }
-                }
-                return best;
+                // Precipitation score: combines probability and amount
+                const precipIn = row.precipIn || 0;
+                const precipProb = row.precipProb != null ? row.precipProb : 0;
+                const amountPenalty = Math.max(0, 1 - precipIn / 0.5);
+                const precipScore = (1 - precipProb / 100) * amountPenalty;
+
+                // Day preference score
+                const rowDate = new Date(row.isoDate + 'T00:00:00');
+                const dow = rowDate.getDay();
+                const isPreferred = preferredDays.indexOf(dow) !== -1;
+                const dayPrefScore = isPreferred ? 1.0 : 0.3;
+
+                // Proximity score: distance from estimated mow date
+                const estimatedDateObj = new Date(estimatedMowDate + 'T00:00:00');
+                const daysAway = Math.round(Math.abs(rowDate - estimatedDateObj) / (1000 * 60 * 60 * 24));
+                const proximityScore = Math.max(0, 1 - daysAway * 0.15);
+
+                const score = 0.20 * tempScore + 0.40 * precipScore + 0.30 * dayPrefScore + 0.10 * proximityScore;
+
+                // NOTE: Reasons are NOT built here. renderBestDayRecommendation builds them fresh
+                // from row.precipIn, row.precipProb, row.maxF, and isPreferred at render time so
+                // that all displayed values respect the current metric/imperial unit system on every render.
+
+                return { score, daysAway, isPreferred };
             }
 
+            function selectBestMowDay(forecastRows, estimatedMowDate, windowStartDate, windowEndDate, preferredDays, requirePreferred) {
+                if (!estimatedMowDate) return null;
+
+                // Detect if estimatedMowDate is from normals (no isoDate on normals rows)
+                const estRowInForecast = forecastRows.find(function(r) { return r.isoDate === estimatedMowDate; });
+                if (!estRowInForecast) {
+                    return { normals: true };
+                }
+
+                // Build candidate date range: window ±2 days
+                const wsDate = windowStartDate ? new Date(windowStartDate + 'T00:00:00') : new Date(estimatedMowDate + 'T00:00:00');
+                const weDate = windowEndDate ? new Date(windowEndDate + 'T00:00:00') : new Date(estimatedMowDate + 'T00:00:00');
+                wsDate.setDate(wsDate.getDate() - 2);
+                weDate.setDate(weDate.getDate() + 2);
+
+                // Filter to candidates: forecast only, within date range
+                let candidates = forecastRows.filter(function(r) {
+                    if (r.isNormals) return false;
+                    const d = new Date(r.isoDate + 'T00:00:00');
+                    return d >= wsDate && d <= weDate;
+                });
+
+                if (requirePreferred) {
+                    candidates = candidates.filter(function(r) {
+                        const dow = new Date(r.isoDate + 'T00:00:00').getDay();
+                        return preferredDays.indexOf(dow) !== -1;
+                    });
+                    if (candidates.length === 0) {
+                        return { noPreferredDays: true, estimatedMowDate: estimatedMowDate };
+                    }
+                }
+
+                if (candidates.length === 0) return null;
+
+                // Score all candidates
+                const scored = candidates.map(function(row) {
+                    const result = scoreMowDay(row, estimatedMowDate, preferredDays);
+                    return { row: row, score: result.score, daysAway: result.daysAway, isPreferred: result.isPreferred };
+                });
+
+                // Sort: highest score first, then closest to estimated date
+                scored.sort(function(a, b) {
+                    if (Math.abs(a.score - b.score) > 0.0001) return b.score - a.score;
+                    return a.daysAway - b.daysAway;
+                });
+
+                const best = scored[0];
+                const isBestDifferentFromEstimated = best.row.isoDate !== estimatedMowDate;
+                const isNonPreferred = !best.isPreferred;
+
+                return { row: best.row, isPreferred: best.isPreferred, isBestDifferentFromEstimated, isNonPreferred };
+            }
+
+            // --- HELPER FUNCTIONS ---
             function getWeatherInfo(code) {
                 if (code == null) return { emoji: '', label: '' };
                 if (code === 0) return { emoji: '\u2600\uFE0F', label: 'Clear' };
@@ -1729,7 +2014,12 @@
                         lastMowedDate: lastMowedDateInput.value,
                         irrigated: document.getElementById('irrigatedToggle') ? document.getElementById('irrigatedToggle').checked : false,
                         climateNormals: document.getElementById('climateNormalsToggle') ? document.getElementById('climateNormalsToggle').checked : false,
-                        unitSystem: unitSystem
+                        unitSystem: unitSystem,
+                        preferredMowDays: [0,1,2,3,4,5,6].filter(function(d) {
+                            const el = document.getElementById('prefDay-' + d);
+                            return el && el.checked;
+                        }),
+                        requirePreferredDays: document.getElementById('requirePreferredDays') ? document.getElementById('requirePreferredDays').checked : false
                     };
                     localStorage.setItem('mgdd_user_settings', JSON.stringify(settings));
                 } catch (e) {}
@@ -1761,6 +2051,14 @@
                     if (irrigatedEl && s.irrigated !== undefined) irrigatedEl.checked = s.irrigated;
                     const climateNormalsEl = document.getElementById('climateNormalsToggle');
                     if (climateNormalsEl && s.climateNormals !== undefined) climateNormalsEl.checked = s.climateNormals;
+                    if (Array.isArray(s.preferredMowDays)) {
+                        [0,1,2,3,4,5,6].forEach(function(d) {
+                            const el = document.getElementById('prefDay-' + d);
+                            if (el) el.checked = s.preferredMowDays.indexOf(d) !== -1;
+                        });
+                    }
+                    const requireEl = document.getElementById('requirePreferredDays');
+                    if (requireEl && s.requirePreferredDays !== undefined) requireEl.checked = s.requirePreferredDays;
                     // Update map marker
                     const lat = parseFloat(s.lat);
                     const lon = parseFloat(s.lon);
