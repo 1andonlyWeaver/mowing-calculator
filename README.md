@@ -60,6 +60,19 @@ In real-time mode, the app detects when grass breaks spring dormancy before accu
 
 When the season has not started, the tool shows which condition(s) are still blocking and the current progress toward each threshold.
 
+### Best Day to Mow Recommendation
+
+After calculating the estimated mow date, the app recommends the **best day to mow** within your mow window. It scores each candidate day using four factors:
+
+- **Temperature comfort** (20%) — Ideal mowing conditions are 60–80°F. Days outside this range are penalized proportionally.
+- **Precipitation risk** (40%) — Combines forecast probability and expected amount. Rain is the biggest dealbreaker for mowing.
+- **Day preference** (30%) — Select your preferred mow days (e.g., Sat + Sun). Preferred days score higher.
+- **Proximity** (10%) — Days closer to the agronomically ideal mow date score slightly higher.
+
+**Preferred Mow Days** input (above the Calculate button):
+- Check the days of the week you prefer to mow. Defaults to Saturday and Sunday.
+- Enable **"Only recommend on these days"** to restrict the recommendation to only those days. If no preferred day falls in the mow window, a fallback message is shown.
+
 ### Precipitation Adjustment
 
 Daily MGDD contributions are scaled based on a rolling 7-day precipitation total compared to the grass type's optimal water need. When recent rainfall is below optimal, growth contributions are reduced (down to 50%). A moisture status indicator shows current conditions after calculation.
