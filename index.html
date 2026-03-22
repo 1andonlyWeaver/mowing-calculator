@@ -340,12 +340,19 @@
             <div class="space-y-5 text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">What is this tool?</h3>
-                    <p>This tool estimates your next lawn mowing date using weather data and the Modified Growing Degree Day (MGDD) model, rather than a fixed calendar schedule. Because grass grows based on accumulated heat &mdash; not the calendar &mdash; this approach adapts to your local weather conditions in real time.</p>
+                    <p>This tool estimates your next lawn mowing date using weather data and the Modified Growing Degree Day (MGDD) model, rather than a fixed calendar schedule. Because grass grows based on accumulated heat &mdash; not the calendar &mdash; this approach adapts to your local weather conditions in real time. All settings are saved automatically in your browser and restored on your next visit.</p>
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">What are Growing Degree Days?</h3>
-                    <p>Plants grow based on accumulated heat, not calendar days. Each day contributes heat units above a base temperature (below which growth stops). <strong>Modified</strong> GDD also caps daily contributions at an upper temperature where growth slows due to heat stress. When accumulated MGDD since your last mow reaches a target threshold, it's time to mow again.</p>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Two modes</h3>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li><strong>Real-time</strong> &mdash; Uses historical PRISM data plus a 15-day GFS forecast to estimate your next specific mow date. Shows an accumulation chart and day-by-day breakdown.
+                            <ul class="list-disc list-inside space-y-1 ml-4 mt-1">
+                                <li><strong>Extend with climate normals</strong> &mdash; Enable this toggle to project beyond the 15-day forecast window using 30-year PRISM averages. Extended rows appear in amber italics in the forecast table and as a separate line on the chart.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Climatology</strong> &mdash; Uses 30 years of PRISM normals (1991&ndash;2020) to show average mowing intervals throughout the year for your location. Useful for seasonal planning. Does not require a last mow date.</li>
+                    </ul>
                 </section>
 
                 <section>
@@ -355,46 +362,66 @@
                         <li>Pick a grass type preset or set custom base/upper/target values</li>
                         <li>Enter your last mow date</li>
                         <li>Click <strong>Estimate Next Mow Date</strong></li>
+                        <li>Switch between the <strong>Plot</strong> and <strong>Table</strong> views using the toggle below the results; use the maximize button to view the chart fullscreen</li>
                     </ol>
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Two modes</h3>
-                    <ul class="list-disc list-inside space-y-1 ml-2">
-                        <li><strong>Real-time</strong> &mdash; Uses historical PRISM data plus a 15-day GFS forecast to estimate your next specific mow date. Shows an accumulation chart and day-by-day breakdown.</li>
-                        <li><strong>Climatology</strong> &mdash; Uses 30 years of PRISM normals (1991&ndash;2020) to show average mowing intervals throughout the year for your location. Useful for seasonal planning.</li>
-                    </ul>
-                </section>
-
-                <section>
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Growing Season Detection</h3>
-                    <p>The tool detects when grass breaks spring dormancy using a layered guard-rail model. All five conditions must be met before mowing GDD begins to accumulate:</p>
-                    <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
-                        <li><strong>Feb 15 biofix</strong> &mdash; No GDD accumulates before February 15. Meaningful turfgrass development does not occur before mid-February at any US latitude (matches MSU GDD Tracker).</li>
-                        <li><strong>Hard freeze reset</strong> &mdash; If a day&apos;s minimum temperature drops to 25&deg;F or below after the biofix, accumulated green-up GDD resets to zero. Hard freezes kill newly de-hardened tissue, undoing dormancy-break progress.</li>
-                        <li><strong>Day-length floor</strong> &mdash; Season cannot start until daylight at your latitude exceeds 10 hours (a latitude-dependent astronomical constraint, not species-specific).</li>
-                        <li><strong>Cumulative GDD threshold</strong> &mdash; After the above gates pass, GDD accumulates using a species-specific base temperature. Season starts when the thermal sum reaches the green-up threshold (e.g., 200 GDD base 32&deg;F for Kentucky Bluegrass).</li>
-                        <li><strong>Precipitation check</strong> &mdash; Minimum recent rainfall is required, since thermal accumulation alone cannot induce sustainable green-up without adequate soil moisture.</li>
-                    </ul>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Understanding the science (MGDD)</h3>
+                    <p>Plants grow based on accumulated heat, not calendar days. Each day contributes heat units above a base temperature (below which growth stops). <strong>Modified</strong> GDD also caps daily contributions at an upper temperature where growth slows due to heat stress. When accumulated MGDD since your last mow reaches a target threshold, it's time to mow again.</p>
                 </section>
 
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Grass type presets</h3>
+                    <p class="mb-1">Selecting a preset fills in base, upper, and target MGDD values. It also sets species-specific dormancy-break thresholds used by growing season detection:</p>
                     <ul class="list-disc list-inside space-y-1 ml-2">
-                        <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 32&deg;F, Upper 86&deg;F, Target 320 MGDD</li>
-                        <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 95&deg;F, Target 225 MGDD</li>
-                        <li><strong>Zoysia Grass</strong> (warm-season) &mdash; Base 41&deg;F, Upper 86&deg;F, Target 345 MGDD</li>
+                        <li><strong>Kentucky Bluegrass</strong> (cool-season) &mdash; Base 32&deg;F, Upper 86&deg;F, Target 320 MGDD | Green-up: 200 GDD above 32&deg;F, min 0.25 in rain/14 days</li>
+                        <li><strong>Bermuda Grass</strong> (warm-season) &mdash; Base 50&deg;F, Upper 95&deg;F, Target 225 MGDD | Green-up: 150 GDD above 41&deg;F, min 0.50 in rain/14 days</li>
+                        <li><strong>Zoysia Grass</strong> (warm-season) &mdash; Base 41&deg;F, Upper 86&deg;F, Target 345 MGDD | Green-up: 175 GDD above 41&deg;F, min 0.40 in rain/14 days</li>
                     </ul>
-                    <p class="mt-1">These are starting points; adjust to match your lawn's actual growth rate.</p>
+                    <p class="mt-1">These are starting points; adjust to match your lawn's actual growth rate. Manually editing any value reverts the dropdown to "Custom."</p>
                 </section>
 
                 <section>
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Precipitation Adjustment</h3>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Growing season detection</h3>
+                    <p>The tool detects when grass breaks spring dormancy using a layered guard-rail model. All five conditions must be met before mowing GDD begins to accumulate. Thresholds for the GDD and precipitation gates vary by species (see presets above).</p>
+                    <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
+                        <li><strong>Feb 15 biofix</strong> &mdash; No GDD accumulates before February 15. Meaningful turfgrass development does not occur before mid-February at any US latitude (matches MSU GDD Tracker).</li>
+                        <li><strong>Hard freeze reset</strong> &mdash; If a day&apos;s minimum temperature drops to 25&deg;F or below after the biofix, accumulated green-up GDD resets to zero. Hard freezes kill newly de-hardened tissue, undoing dormancy-break progress.</li>
+                        <li><strong>Day-length floor</strong> &mdash; Season cannot start until daylight at your latitude exceeds 10 hours (a latitude-dependent astronomical constraint, not species-specific).</li>
+                        <li><strong>Cumulative GDD threshold</strong> &mdash; After the above gates pass, GDD accumulates using a species-specific base temperature. Season starts when the thermal sum reaches the green-up threshold.</li>
+                        <li><strong>Precipitation check</strong> &mdash; Minimum recent rainfall over the prior 14 days is required, since thermal accumulation alone cannot induce sustainable green-up without adequate soil moisture.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Precipitation and moisture</h3>
                     <p>In real-time mode, the tool adjusts daily MGDD contributions based on recent rainfall. A rolling 7-day precipitation total is compared to each grass type's optimal water need. When rainfall is below optimal, daily growth contributions are scaled down (to a minimum of 50% &mdash; grass slows but rarely stops completely during growing season). When rainfall meets or exceeds the optimal amount, no reduction is applied.</p>
                     <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
                         <li><strong>Irrigated toggle</strong> &mdash; If your lawn is irrigated, enable this to bypass precipitation adjustments entirely (multiplier always 1.0).</li>
-                        <li><strong>Moisture status</strong> &mdash; After calculation, a status indicator shows current soil moisture conditions: adequate (green), slightly dry (yellow), or drought stress (red).</li>
+                        <li><strong>Moisture status</strong> &mdash; After calculation, a status indicator shows current soil moisture conditions: adequate (green), slightly dry (yellow), or drought stress (red). Irrigated mode shows blue.</li>
+                        <li><strong>Precipitation probability</strong> &mdash; The forecast table and weather strip show the daily chance of rain (from Open-Meteo GFS). This column is hidden for climate normals rows and suppressed in irrigated mode.</li>
                         <li><strong>Climatology mode</strong> does not apply precipitation scaling, since 30-year averages already incorporate typical precipitation patterns.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Results and mowing guidance</h3>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li><strong>Mow window</strong> &mdash; The optimal mow window spans 90&ndash;110% of your target MGDD. The estimated mow date is when accumulation crosses 100%; mowing anywhere in this range is appropriate.</li>
+                        <li><strong>Weekend suggestion</strong> &mdash; If the estimated mow date falls on a weekday, the tool suggests the nearest weekend day and notes whether it falls within the mow window.</li>
+                        <li><strong>Weather strip</strong> &mdash; A 5-day strip centered on the mow date shows temperature, precipitation, wind, and weather icons. Alerts flag rain on mow day (with probability), heavy rain nearby, or high winds.</li>
+                        <li><strong>Mow history</strong> &mdash; Click <strong>Log Today as Mowed</strong> to record a mow date. History is stored locally in your browser and can be cleared at any time. Logging a mow updates the last mow date field automatically.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Settings and display</h3>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li><strong>Unit system</strong> &mdash; Toggle between imperial (&deg;F / in) and metric (&deg;C / mm) using the buttons in the parameters panel. All internal calculations use imperial; the toggle converts displayed values on the fly.</li>
+                        <li><strong>Theme</strong> &mdash; Choose light, dark, or system-default using the buttons in the page header. Your preference is saved.</li>
+                        <li><strong>Settings persistence</strong> &mdash; Location, grass type, temperatures, last mow date, toggles, and theme are all saved to your browser&apos;s local storage and restored on reload.</li>
+                        <li><strong>Location</strong> &mdash; Click the map, drag the marker, or type an address in the search box. The geolocation button uses your browser&apos;s location API; if unavailable, it falls back to IP-based detection.</li>
                     </ul>
                 </section>
 
