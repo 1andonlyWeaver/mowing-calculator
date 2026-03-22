@@ -1848,36 +1848,6 @@
             }
 
             // --- HELPER FUNCTIONS ---
-            function getNearestWeekend(dateStr) {
-                const d = new Date(dateStr + 'T00:00:00');
-                const dow = d.getDay();
-                // Find nearest Saturday or Sunday
-                const candidates = [];
-                // Previous Saturday
-                const prevSat = new Date(d); prevSat.setDate(d.getDate() - ((dow + 1) % 7));
-                candidates.push(prevSat);
-                // Next Saturday
-                const nextSat = new Date(d); nextSat.setDate(d.getDate() + (6 - dow));
-                candidates.push(nextSat);
-                // Previous Sunday
-                const prevSun = new Date(d); prevSun.setDate(d.getDate() - dow);
-                candidates.push(prevSun);
-                // Next Sunday
-                const nextSun = new Date(d); nextSun.setDate(d.getDate() + (7 - dow));
-                candidates.push(nextSun);
-
-                let best = candidates[0];
-                let bestDiff = Math.abs(candidates[0] - d);
-                for (let ci = 1; ci < candidates.length; ci++) {
-                    const diff = Math.abs(candidates[ci] - d);
-                    if (diff < bestDiff || (diff === bestDiff && candidates[ci] < best)) {
-                        best = candidates[ci];
-                        bestDiff = diff;
-                    }
-                }
-                return best;
-            }
-
             function getWeatherInfo(code) {
                 if (code == null) return { emoji: '', label: '' };
                 if (code === 0) return { emoji: '\u2600\uFE0F', label: 'Clear' };
