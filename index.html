@@ -1588,9 +1588,20 @@
                 const bestDate = new Date(row.isoDate + 'T00:00:00');
                 const bestLabel = bestDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 
-                // Build reasoning — temperature is rendered fresh here so it respects current unit system
-                const tempDisplay = toDisplayTemp(row.maxF);
-                const allReasons = bestDayResult.reasons.concat(['high of ' + tempDisplay + tempUnit()]);
+                // Build all reasons fresh at render time so unit conversions are always current
+                const precipIn = row.precipIn || 0;
+                const precipProb = row.precipProb != null ? row.precipProb : 0;
+                const allReasons = [];
+                if (precipProb <= 20 && precipIn < 0.1) {
+                    allReasons.push('low rain chance (' + precipProb + '%)');
+                } else if (precipProb > 60 || precipIn >= 0.25) {
+                    const precipDisplay = toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 0 : 2);
+                    allReasons.push('rain expected (' + precipProb + '%, ' + precipDisplay + precipUnit() + ')');
+                } else {
+                    allReasons.push(precipProb + '% rain chance');
+                }
+                if (bestDayResult.isPreferred) allReasons.push('preferred day');
+                allReasons.push('high of ' + toDisplayTemp(row.maxF) + tempUnit());
 
                 const chips = allReasons.map(function(r) {
                     return '<span class="bdr-reason-chip">' + r + '</span>';
@@ -1913,22 +1924,11 @@
 
                 const score = 0.20 * tempScore + 0.40 * precipScore + 0.30 * dayPrefScore + 0.10 * proximityScore;
 
-                // Build human-readable reasons (no temperature here — rendered fresh at display time for unit toggle)
-                const reasons = [];
-                if (precipProb <= 20 && precipIn < 0.1) {
-                    reasons.push('low rain chance (' + precipProb + '%)');
-                } else if (precipProb > 60 || precipIn >= 0.25) {
-                    const precipDisplay = toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 0 : 2);
-                    reasons.push('rain expected (' + precipProb + '%, ' + precipDisplay + precipUnit() + ')');
-                } else {
-                    reasons.push(precipProb + '% rain chance');
-                }
-                if (isPreferred) reasons.push('preferred day');
-                // NOTE: temperature is intentionally NOT added to reasons here.
-                // It is rendered by renderBestDayRecommendation using toDisplayTemp(row.maxF) so it
-                // updates correctly when the user toggles metric/imperial.
+                // NOTE: Reasons are NOT built here. renderBestDayRecommendation builds them fresh
+                // from row.precipIn, row.precipProb, row.maxF, and isPreferred at render time so
+                // that all displayed values respect the current metric/imperial unit system on every render.
 
-                return { score, daysAway, reasons, isPreferred };
+                return { score, daysAway, isPreferred };
             }
 
             function selectBestMowDay(forecastRows, estimatedMowDate, windowStartDate, windowEndDate, preferredDays, requirePreferred) {
@@ -1968,7 +1968,7 @@
                 // Score all candidates
                 const scored = candidates.map(function(row) {
                     const result = scoreMowDay(row, estimatedMowDate, preferredDays);
-                    return { row: row, score: result.score, daysAway: result.daysAway, reasons: result.reasons, isPreferred: result.isPreferred };
+                    return { row: row, score: result.score, daysAway: result.daysAway, isPreferred: result.isPreferred };
                 });
 
                 // Sort: highest score first, then closest to estimated date
