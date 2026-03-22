@@ -1866,7 +1866,12 @@
                         lastMowedDate: lastMowedDateInput.value,
                         irrigated: document.getElementById('irrigatedToggle') ? document.getElementById('irrigatedToggle').checked : false,
                         climateNormals: document.getElementById('climateNormalsToggle') ? document.getElementById('climateNormalsToggle').checked : false,
-                        unitSystem: unitSystem
+                        unitSystem: unitSystem,
+                        preferredMowDays: [0,1,2,3,4,5,6].filter(function(d) {
+                            const el = document.getElementById('prefDay-' + d);
+                            return el && el.checked;
+                        }),
+                        requirePreferredDays: document.getElementById('requirePreferredDays') ? document.getElementById('requirePreferredDays').checked : false
                     };
                     localStorage.setItem('mgdd_user_settings', JSON.stringify(settings));
                 } catch (e) {}
@@ -1898,6 +1903,14 @@
                     if (irrigatedEl && s.irrigated !== undefined) irrigatedEl.checked = s.irrigated;
                     const climateNormalsEl = document.getElementById('climateNormalsToggle');
                     if (climateNormalsEl && s.climateNormals !== undefined) climateNormalsEl.checked = s.climateNormals;
+                    if (Array.isArray(s.preferredMowDays)) {
+                        [0,1,2,3,4,5,6].forEach(function(d) {
+                            const el = document.getElementById('prefDay-' + d);
+                            if (el) el.checked = s.preferredMowDays.indexOf(d) !== -1;
+                        });
+                    }
+                    const requireEl = document.getElementById('requirePreferredDays');
+                    if (requireEl && s.requirePreferredDays !== undefined) requireEl.checked = s.requirePreferredDays;
                     // Update map marker
                     const lat = parseFloat(s.lat);
                     const lon = parseFloat(s.lon);
