@@ -1440,6 +1440,55 @@
                 }
             }
             
+            function renderBestDayRecommendation(bestDayResult, estimatedMowDate) {
+                const el = document.getElementById('bestDayRecommendation');
+                if (!el) return;
+
+                if (!estimatedMowDate || !bestDayResult) {
+                    el.classList.add('hidden');
+                    return;
+                }
+
+                if (bestDayResult.normals) {
+                    el.innerHTML = '<span class="font-medium">Best-day recommendation requires forecast data</span> — estimated date is beyond the 15-day outlook.';
+                    el.classList.remove('hidden');
+                    return;
+                }
+
+                if (bestDayResult.noPreferredDays) {
+                    const estLabel = new Date(bestDayResult.estimatedMowDate + 'T00:00:00')
+                        .toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+                    el.innerHTML = '<span class="font-medium">No preferred days fall in the mow window.</span> Consider mowing on ' + estLabel + ' or widening your preferred days.';
+                    el.classList.remove('hidden');
+                    return;
+                }
+
+                const row = bestDayResult.row;
+                const bestDate = new Date(row.isoDate + 'T00:00:00');
+                const bestLabel = bestDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+
+                let html = '<span class="font-medium">Best day to mow: ' + bestLabel + '</span>';
+
+                // Build reasoning — temperature is rendered fresh here so it respects current unit system
+                const tempDisplay = toDisplayTemp(row.maxF);
+                const allReasons = bestDayResult.reasons.concat(['high of ' + tempDisplay + tempUnit()]);
+                const reasonText = allReasons.join(', ');
+                html += '<div class="mt-1 text-xs opacity-80">' + reasonText + '</div>';
+
+                if (bestDayResult.isBestDifferentFromEstimated) {
+                    const estLabel = new Date(estimatedMowDate + 'T00:00:00')
+                        .toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    html += '<div class="mt-1 text-xs opacity-70">Estimated date is ' + estLabel + ' — ' + bestLabel.split(',')[0] + ' has better conditions.</div>';
+                }
+
+                if (bestDayResult.isNonPreferred) {
+                    html += '<div class="mt-1 text-xs opacity-70">(No preferred days available in this window)</div>';
+                }
+
+                el.innerHTML = html;
+                el.classList.remove('hidden');
+            }
+
             function renderForecastTable(rows, targetGDD) {
                 let html = '<div class="font-semibold grid grid-cols-7 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Chance</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
                 let normalsSeparatorShown = false;
