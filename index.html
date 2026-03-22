@@ -1196,6 +1196,7 @@
                         const precipProb = forecastData.daily.precipitation_probability_max ? forecastData.daily.precipitation_probability_max[i] : null;
 
                         forecastRows.push({
+                            isoDate: date,
                             displayDate,
                             minF: forecastData.daily.temperature_2m_min[i],
                             maxF: forecastData.daily.temperature_2m_max[i],
