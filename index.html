@@ -1670,6 +1670,103 @@
                 return await response.json();
             }
 
+            // --- BEST DAY SCORING ---
+            function scoreMowDay(row, estimatedMowDate, preferredDays) {
+                // Temperature score: 1.0 in 60-80°F, tapers to 0 at 40°F and 100°F
+                const maxF = row.maxF;
+                const distFromRange = Math.max(0, 40 - maxF, maxF - 80);
+                const tempScore = Math.max(0, 1 - distFromRange / 20);
+
+                // Precipitation score: combines probability and amount
+                const precipIn = row.precipIn || 0;
+                const precipProb = row.precipProb != null ? row.precipProb : 0;
+                const amountPenalty = Math.max(0, 1 - precipIn / 0.5);
+                const precipScore = (1 - precipProb / 100) * amountPenalty;
+
+                // Day preference score
+                const rowDate = new Date(row.isoDate + 'T00:00:00');
+                const dow = rowDate.getDay();
+                const isPreferred = preferredDays.indexOf(dow) !== -1;
+                const dayPrefScore = isPreferred ? 1.0 : 0.3;
+
+                // Proximity score: distance from estimated mow date
+                const estimatedDateObj = new Date(estimatedMowDate + 'T00:00:00');
+                const daysAway = Math.round(Math.abs(rowDate - estimatedDateObj) / (1000 * 60 * 60 * 24));
+                const proximityScore = Math.max(0, 1 - daysAway * 0.15);
+
+                const score = 0.20 * tempScore + 0.40 * precipScore + 0.30 * dayPrefScore + 0.10 * proximityScore;
+
+                // Build human-readable reasons (no temperature here — rendered fresh at display time for unit toggle)
+                const reasons = [];
+                if (precipProb <= 20 && precipIn < 0.1) {
+                    reasons.push('low rain chance (' + precipProb + '%)');
+                } else if (precipProb > 60 || precipIn >= 0.25) {
+                    const precipDisplay = toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 0 : 2);
+                    reasons.push('rain expected (' + precipProb + '%, ' + precipDisplay + precipUnit() + ')');
+                } else {
+                    reasons.push(precipProb + '% rain chance');
+                }
+                if (isPreferred) reasons.push('preferred day');
+                // NOTE: temperature is intentionally NOT added to reasons here.
+                // It is rendered by renderBestDayRecommendation using toDisplayTemp(row.maxF) so it
+                // updates correctly when the user toggles metric/imperial.
+
+                return { score, daysAway, reasons, isPreferred };
+            }
+
+            function selectBestMowDay(forecastRows, estimatedMowDate, windowStartDate, windowEndDate, preferredDays, requirePreferred) {
+                if (!estimatedMowDate) return null;
+
+                // Detect if estimatedMowDate is from normals (no isoDate on normals rows)
+                const estRowInForecast = forecastRows.find(function(r) { return r.isoDate === estimatedMowDate; });
+                if (!estRowInForecast) {
+                    return { normals: true };
+                }
+
+                // Build candidate date range: window ±2 days
+                const wsDate = windowStartDate ? new Date(windowStartDate + 'T00:00:00') : new Date(estimatedMowDate + 'T00:00:00');
+                const weDate = windowEndDate ? new Date(windowEndDate + 'T00:00:00') : new Date(estimatedMowDate + 'T00:00:00');
+                wsDate.setDate(wsDate.getDate() - 2);
+                weDate.setDate(weDate.getDate() + 2);
+
+                // Filter to candidates: forecast only, within date range
+                let candidates = forecastRows.filter(function(r) {
+                    if (r.isNormals) return false;
+                    const d = new Date(r.isoDate + 'T00:00:00');
+                    return d >= wsDate && d <= weDate;
+                });
+
+                if (requirePreferred) {
+                    candidates = candidates.filter(function(r) {
+                        const dow = new Date(r.isoDate + 'T00:00:00').getDay();
+                        return preferredDays.indexOf(dow) !== -1;
+                    });
+                    if (candidates.length === 0) {
+                        return { noPreferredDays: true, estimatedMowDate: estimatedMowDate };
+                    }
+                }
+
+                if (candidates.length === 0) return null;
+
+                // Score all candidates
+                const scored = candidates.map(function(row) {
+                    const result = scoreMowDay(row, estimatedMowDate, preferredDays);
+                    return { row: row, score: result.score, daysAway: result.daysAway, reasons: result.reasons, isPreferred: result.isPreferred };
+                });
+
+                // Sort: highest score first, then closest to estimated date
+                scored.sort(function(a, b) {
+                    if (Math.abs(a.score - b.score) > 0.0001) return b.score - a.score;
+                    return a.daysAway - b.daysAway;
+                });
+
+                const best = scored[0];
+                const isBestDifferentFromEstimated = best.row.isoDate !== estimatedMowDate;
+                const isNonPreferred = !best.isPreferred;
+
+                return { row: best.row, reasons: best.reasons, isBestDifferentFromEstimated, isNonPreferred };
+            }
+
             // --- HELPER FUNCTIONS ---
             function getNearestWeekend(dateStr) {
                 const d = new Date(dateStr + 'T00:00:00');
