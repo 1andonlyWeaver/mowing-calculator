@@ -1354,29 +1354,16 @@
                         }
                     }
 
-                    // --- Weekend Suggestion ---
-                    const weekendEl = document.getElementById('weekendSuggestion');
-                    if (weekendEl && estimatedMowDate) {
-                        const mowDateObj = new Date(estimatedMowDate + 'T00:00:00');
-                        const dayOfWeek = mowDateObj.getDay();
-                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                            const nearestWeekend = getNearestWeekend(estimatedMowDate);
-                            const weekendLabel = nearestWeekend.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-                            let inWindow = false;
-                            if (windowStartDate && windowEndDate) {
-                                const ws = new Date(windowStartDate + 'T00:00:00');
-                                const we = new Date(windowEndDate + 'T00:00:00');
-                                inWindow = nearestWeekend >= ws && nearestWeekend <= we;
-                            }
-                            const statusText = inWindow ? '(within mow window)' : '(outside optimal window)';
-                            weekendEl.textContent = `Nearest weekend: ${weekendLabel} ${statusText}`;
-                            weekendEl.classList.remove('hidden');
-                        } else {
-                            weekendEl.classList.add('hidden');
-                        }
-                    } else if (weekendEl) {
-                        weekendEl.classList.add('hidden');
-                    }
+                    // --- Best Day to Mow ---
+                    const preferredDays = [0,1,2,3,4,5,6].filter(function(d) {
+                        const el = document.getElementById('prefDay-' + d);
+                        return el && el.checked;
+                    });
+                    const requirePreferred = document.getElementById('requirePreferredDays')
+                        ? document.getElementById('requirePreferredDays').checked
+                        : false;
+                    const bestDayResult = selectBestMowDay(forecastRows, estimatedMowDate, windowStartDate, windowEndDate, preferredDays, requirePreferred);
+                    renderBestDayRecommendation(bestDayResult, estimatedMowDate);
 
                     // --- Weather Context ---
                     let weatherStrips = null;
@@ -1419,7 +1406,11 @@
                         forecastRows,
                         weatherStrips,
                         moistureData: { irrigated, latestScaleFactor, latestPrecip7day },
-                        normalsUsed: normalsUsed
+                        normalsUsed: normalsUsed,
+                        bestDayResult,
+                        estimatedMowDate,
+                        windowStartDate,
+                        windowEndDate
                     };
 
                     saveSettings();
