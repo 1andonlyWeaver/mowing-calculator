@@ -1981,7 +1981,7 @@
                 const isBestDifferentFromEstimated = best.row.isoDate !== estimatedMowDate;
                 const isNonPreferred = !best.isPreferred;
 
-                return { row: best.row, reasons: best.reasons, isBestDifferentFromEstimated, isNonPreferred };
+                return { row: best.row, isPreferred: best.isPreferred, isBestDifferentFromEstimated, isNonPreferred };
             }
 
             // --- HELPER FUNCTIONS ---
