@@ -2,7 +2,7 @@
 
 ## MGDD Mow Date Estimator
 
-A static web app to estimate the next mow date using Modified Growing Degree Days (MGDD), combining historical temperatures (ACIS PRISM) and a short-term forecast (Open-Meteo GFS).
+A static web app to estimate the next mow date using Modified Growing Degree Days (MGDD), combining historical temperatures (ACIS PRISM) and a short-term forecast (NWS NDFD + Open-Meteo GFS).
 
 ### New: Climatology View
 
@@ -38,7 +38,7 @@ python -m http.server 8000
 
 The app will:
 - Pull historical daily min/max temperatures and precipitation from ACIS PRISM.
-- Pull a 15-day forecast (including precipitation) from Open-Meteo GFS.
+- Pull a 15-day forecast (including precipitation) from NWS NDFD (~7 days, US only) and Open-Meteo GFS (extended range or fallback for non-US locations).
 - Compute MGDD accumulation since last mowing, adjusted for recent precipitation, and estimate when the target is reached.
 - Display a chart and daily breakdown with a Rain column showing daily precipitation.
 
@@ -83,4 +83,4 @@ Daily MGDD contributions are scaled based on a rolling 7-day precipitation total
 ### Notes
 
 - Internet access is required for map tiles and weather APIs.
-- If ACIS or Open-Meteo are temporarily unavailable, try again later.
+- If ACIS or weather forecast APIs are temporarily unavailable, try again later. The app will automatically fall back to Open-Meteo GFS if the NWS NDFD API is unreachable.

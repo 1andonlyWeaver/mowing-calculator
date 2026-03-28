@@ -28,7 +28,7 @@ Or open `index.html` directly in a browser. No build step, no dependencies to in
 
 ### Two Operating Modes
 
-1. **Real-time mode**: Fetches historical temps from ACIS PRISM and a 15-day forecast from Open-Meteo GFS, computes MGDD accumulation since last mow, and estimates the next mow date.
+1. **Real-time mode**: Fetches historical temps from ACIS PRISM and a 15-day forecast (NWS NDFD ~7 days + Open-Meteo GFS extended range; Open-Meteo used as full fallback for non-US locations or when NDFD is unavailable), computes MGDD accumulation since last mow, and estimates the next mow date.
 2. **Climatology mode**: Fetches 30 years of PRISM data (1991–2020), computes daily normal MGDD, and shows average mowing interval by day-of-year plus monthly median bar chart.
 
 ### Key Functions
@@ -39,7 +39,11 @@ Or open `index.html` directly in a browser. No build step, no dependencies to in
 - `findGrowingSeasonStart(times, mins, maxs, precips, grassType, baseTemp, lat)` — 5-condition dormancy-break detector (Feb 15 biofix, cumulative green-up GDD, hard freeze reset, day-length floor, precipitation)
 - `diagnoseSeasonStatus(...)` — returns human-readable growing season status for the info banner
 - `fetchAcisData(lat, lon, start, end)` — historical weather from ACIS GridData (PRISM grid 21, POST to `data.rcc-acis.org/GridData`)
-- `fetchOpenMeteoData(lat, lon, start, end)` — forecast weather from Open-Meteo GFS; fetches `precipitation_probability_max` alongside temps and precip
+- `fetchNdfdData(lat, lon)` — short-range forecast (~7 days) from NWS NDFD via `api.weather.gov`; 2-step `/points` → `/gridpoints` fetch; normalizes to the same shape as Open-Meteo; throws on non-US locations (caller catches and falls back)
+- `fetchOpenMeteoData(lat, lon, start, end)` — extended forecast from Open-Meteo GFS; used for days beyond the NDFD window, or as a full fallback when NDFD is unavailable
+- `mergeForecastData(a, b)` — concatenates two normalized forecast data objects into one
+- `nextDay(dateStr)` — returns the YYYY-MM-DD string for the day after the given date
+- `ndfdWeatherToWmoCode(weatherValues)` — maps NDFD weather type strings to WMO weather codes for icon compatibility
 - `handleCalculation()` — real-time mode pipeline: fetch data, accumulate MGDD, find crossing date, render chart/table
 - `handleClimatologyCalculation()` — climatology mode pipeline: fetch 30-year normals, average by DOY, compute days-to-target for each start DOY
 - `renderForecastTable(rows, targetGDD)` — renders day-by-day forecast/normals table including precipProb column
@@ -49,7 +53,7 @@ Or open `index.html` directly in a browser. No build step, no dependencies to in
 
 ### Data Flow
 
-Both ACIS and Open-Meteo responses are normalized to a common shape: `{ daily: { time[], temperature_2m_min[], temperature_2m_max[] } }`. ACIS returns data in `[date, maxt, mint]` rows with `'M'` for missing values.
+ACIS, NDFD, and Open-Meteo responses are all normalized to a common shape: `{ daily: { time[], temperature_2m_min[], temperature_2m_max[] } }`. ACIS returns data in `[date, maxt, mint]` rows with `'M'` for missing values. NDFD returns Celsius temperatures and variable-duration ISO 8601 time periods that must be bucketed into calendar days.
 
 ### UI Patterns
 
@@ -58,8 +62,8 @@ Both ACIS and Open-Meteo responses are normalized to a common shape: `{ daily: {
 - `waitForNextFrame()` yields to the browser during heavy computation loops to keep spinners animated
 - Mobile: auto-scrolls to results after calculation on viewports < 1024px
 - Unit system toggle (metric/imperial): `applyUnitToggle()` converts displayed °F/in values on-the-fly; all internal calculations and storage remain in imperial
-- Climate normals toggle (`#climateNormalsToggle`): when checked, extends real-time mode predictions beyond the 15-day Open-Meteo window using `computeClimateNormals()`; extended rows have `isNormals: true` which suppresses precipProb display
-- Precipitation probability: fetched as `precipitation_probability_max` from Open-Meteo GFS, stored as `precipProb` on each forecast row, shown in the forecast table and weather strip; hidden for normals rows and suppressed in irrigated mode
+- Climate normals toggle (`#climateNormalsToggle`): when checked, extends real-time mode predictions beyond the 15-day forecast window using `computeClimateNormals()`; extended rows have `isNormals: true` which suppresses precipProb display
+- Precipitation probability: available as `precipitation_probability_max` from both NDFD and Open-Meteo, stored as `precipProb` on each forecast row, shown in the forecast table and weather strip; hidden for normals rows and suppressed in irrigated mode
 
 ## Documentation Maintenance
 
