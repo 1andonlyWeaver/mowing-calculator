@@ -1729,10 +1729,10 @@
                     const precipProbDisplay = (s.precipProb != null && s.precipProb > 0)
                         ? `<div class="text-xs text-blue-600 dark:text-blue-400">${s.precipProb}% chance</div>`
                         : '';
-                    stripHTML += `<div class="rounded-lg p-2 ${ringClass}">
+                    stripHTML += `<div class="rounded-lg p-2 overflow-hidden ${ringClass}">
                         <div class="font-medium text-xs">${s.wLabel}</div>
                         <div class="text-2xl my-1">${wInfo.emoji}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">${wInfo.label}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 truncate">${wInfo.label}</div>
                         <div class="text-xs font-medium">${Math.round(toDisplayTemp(s.tempMaxF))}${tempUnit()}</div>
                         <div class="text-xs">${toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}</div>
                         ${precipProbDisplay}
