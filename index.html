@@ -517,7 +517,7 @@
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Two modes</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
-                        <li><strong>Real-time</strong> &mdash; Uses historical PRISM data plus a 15-day GFS forecast to estimate your next specific mow date. Shows an accumulation chart and day-by-day breakdown.
+                        <li><strong>Real-time</strong> &mdash; Uses historical PRISM data plus a 15-day forecast (NWS NDFD for the first ~7 days, Open-Meteo GFS beyond that) to estimate your next specific mow date. Shows an accumulation chart and day-by-day breakdown.
                             <ul class="list-disc list-inside space-y-1 ml-4 mt-1">
                                 <li><strong>Extend with climate normals</strong> &mdash; Enable this toggle to project beyond the 15-day forecast window using 30-year PRISM averages. Extended rows appear in amber italics in the forecast table and as a separate line on the chart.</li>
                             </ul>
@@ -571,7 +571,7 @@
                     <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
                         <li><strong>Irrigated toggle</strong> &mdash; If your lawn is irrigated, enable this to bypass precipitation adjustments entirely (multiplier always 1.0).</li>
                         <li><strong>Moisture status</strong> &mdash; After calculation, a status indicator shows current soil moisture conditions: adequate (green), slightly dry (yellow), or drought stress (red). Irrigated mode shows blue.</li>
-                        <li><strong>Precipitation probability</strong> &mdash; The forecast table and weather strip show the daily chance of rain (from Open-Meteo GFS). This column is hidden for climate normals rows and suppressed in irrigated mode.</li>
+                        <li><strong>Precipitation probability</strong> &mdash; The forecast table and weather strip show the daily chance of rain (from NDFD for the first ~7 days, Open-Meteo GFS beyond that). This column is hidden for climate normals rows and suppressed in irrigated mode.</li>
                         <li><strong>Climatology mode</strong> does not apply precipitation scaling, since 30-year averages already incorporate typical precipitation patterns.</li>
                     </ul>
                 </section>
@@ -600,7 +600,7 @@
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Data sources</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
                         <li>Historical weather: <a href="https://data.rcc-acis.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">ACIS PRISM GridData</a> (Regional Climate Centers)</li>
-                        <li>Forecast weather: <a href="https://open-meteo.com/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">Open-Meteo GFS</a> (15-day forecast)</li>
+                        <li>Forecast weather: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">NWS NDFD</a> (short-range, ~7 days) + <a href="https://open-meteo.com/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">Open-Meteo GFS</a> (extended to 15 days)</li>
                         <li>Map tiles: <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">OpenStreetMap</a></li>
                     </ul>
                 </section>
@@ -1237,10 +1237,30 @@
                     const lastMowedYear = parseInt(lastMowed.slice(0, 4));
                     const todayYear = parseInt(getYesterdayString().slice(0, 4));
                     const acisStart = Math.min(lastMowedYear, todayYear) + '-01-01';
-                    const [historicalData, forecastData] = await Promise.all([
+                    // Fetch historical data and NDFD short-range forecast in parallel.
+                    // NDFD covers ~7 days; Open-Meteo GFS extends to 15 days.
+                    // If NDFD fails (API error or non-US location), fall back to full Open-Meteo.
+                    const [historicalData, ndfdAttempt] = await Promise.all([
                         fetchAcisData(lat, lon, acisStart, getYesterdayString()),
-                        fetchOpenMeteoData(lat, lon, getTodayString(), getFutureDateString(15))
+                        fetchNdfdData(lat, lon).catch(function(e) {
+                            console.warn('NDFD fetch failed, falling back to Open-Meteo:', e);
+                            return null;
+                        })
                     ]);
+                    let forecastData;
+                    if (ndfdAttempt && ndfdAttempt.daily.time.length > 0) {
+                        const ndfdEndDate = ndfdAttempt.daily.time[ndfdAttempt.daily.time.length - 1];
+                        const extStart = nextDay(ndfdEndDate);
+                        const extEnd = getFutureDateString(15);
+                        let extendedData = { daily: { time: [], temperature_2m_min: [], temperature_2m_max: [],
+                            precipitation_sum: [], precipitation_probability_max: [], weathercode: [], windspeed_10m_max: [] } };
+                        if (new Date(extStart) <= new Date(extEnd)) {
+                            extendedData = await fetchOpenMeteoData(lat, lon, extStart, extEnd);
+                        }
+                        forecastData = mergeForecastData(ndfdAttempt, extendedData);
+                    } else {
+                        forecastData = await fetchOpenMeteoData(lat, lon, getTodayString(), getFutureDateString(15));
+                    }
 
                     if (!historicalData.daily || !forecastData.daily) {
                          throw new Error("Weather data could not be retrieved. Please try again.");
@@ -1669,12 +1689,12 @@
             }
 
             function renderForecastTable(rows, targetGDD) {
-                let html = '<div class="font-semibold grid grid-cols-7 gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Chance</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
+                let html = '<div class="font-semibold grid grid-cols-[2fr_2fr_1fr_1fr_1.5fr_1fr_0.5fr] gap-2 pb-2 border-b"><div>Date</div><div>Min/Max</div><div>Rain</div><div>Chance</div><div>Daily MGDD</div><div>Total</div><div>Weather</div></div>';
                 let normalsSeparatorShown = false;
                 rows.forEach(function(row) {
                     if (row.isNormals && !normalsSeparatorShown) {
                         normalsSeparatorShown = true;
-                        html += '<div class="col-span-7 text-xs text-amber-600 dark:text-amber-400 font-semibold pt-2 pb-1 border-t border-amber-300 dark:border-amber-700 mt-1">Climate Normals (30-yr avg)</div>';
+                        html += '<div class="col-span-full text-xs text-amber-600 dark:text-amber-400 font-semibold pt-2 pb-1 border-t border-amber-300 dark:border-amber-700 mt-1">Climate Normals (30-yr avg)</div>';
                     }
                     const highlightClass = row.isHighlighted ? 'bg-green-100 dark:bg-green-900/30 rounded font-bold' : '';
                     const normalsClass = row.isNormals ? 'italic text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20' : '';
@@ -1683,7 +1703,7 @@
                     const precipProbDisplay = row.isNormals ? '\u2014' : (row.precipProb != null ? row.precipProb + '%' : '\u2014');
                     const weatherDisplay = row.isNormals ? '\u2014' : getWeatherInfo(row.weatherCode).emoji;
                     html += `
-                        <div class="grid grid-cols-7 gap-2 py-1 ${highlightClass} ${normalsClass}">
+                        <div class="grid grid-cols-[2fr_2fr_1fr_1fr_1.5fr_1fr_0.5fr] gap-2 py-1 ${highlightClass} ${normalsClass}">
                             <div>${row.displayDate}</div>
                             <div>${tempPrefix}${Math.round(toDisplayTemp(row.minF))}${tempUnit()}/${Math.round(toDisplayTemp(row.maxF))}${tempUnit()}</div>
                             <div>${precipDisplay}</div>
@@ -1709,10 +1729,10 @@
                     const precipProbDisplay = (s.precipProb != null && s.precipProb > 0)
                         ? `<div class="text-xs text-blue-600 dark:text-blue-400">${s.precipProb}% chance</div>`
                         : '';
-                    stripHTML += `<div class="rounded-lg p-2 ${ringClass}">
+                    stripHTML += `<div class="rounded-lg p-2 overflow-hidden ${ringClass}">
                         <div class="font-medium text-xs">${s.wLabel}</div>
                         <div class="text-2xl my-1">${wInfo.emoji}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">${wInfo.label}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 truncate">${wInfo.label}</div>
                         <div class="text-xs font-medium">${Math.round(toDisplayTemp(s.tempMaxF))}${tempUnit()}</div>
                         <div class="text-xs">${toDisplayPrecip(precipIn).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}</div>
                         ${precipProbDisplay}
@@ -1925,7 +1945,154 @@
             }
 
             /**
-             * Fetches FORECAST weather data from the Open-Meteo API using GFS model.
+             * Maps NDFD weather type strings to WMO weather codes for icon compatibility.
+             */
+            function ndfdWeatherToWmoCode(weatherValues) {
+                if (!weatherValues || weatherValues.length === 0) return 0;
+                let maxCode = 0;
+                for (const w of weatherValues) {
+                    const type = w.weather || '';
+                    let code = 0;
+                    if (type === 'fog' || type === 'ice_fog' || type === 'freezing_fog') code = 45;
+                    else if (type === 'drizzle' || type === 'freezing_drizzle') code = 51;
+                    else if (type === 'rain') code = 61;
+                    else if (type === 'rain_showers') code = 80;
+                    else if (type === 'snow' || type === 'blizzard') code = 71;
+                    else if (type === 'snow_showers') code = 85;
+                    else if (type === 'thunderstorms' || type === 'hail') code = 95;
+                    else if (type === 'ice_pellets' || type === 'sleet') code = 77;
+                    else if (type === 'dust' || type === 'smoke' || type === 'haze') code = 45;
+                    else if (type) code = 3;
+                    if (code > maxCode) maxCode = code;
+                }
+                return maxCode;
+            }
+
+            /**
+             * Fetches short-range forecast from NWS NDFD (api.weather.gov).
+             * Two-step: /points resolves the grid, /gridpoints fetches raw data.
+             * Returns data normalized to the same shape as fetchOpenMeteoData.
+             * Throws on non-US locations or API errors (caller should catch and fall back).
+             */
+            async function fetchNdfdData(lat, lon) {
+                const NWS_HEADERS = { 'User-Agent': 'MGDDMowDateEstimator (github.com)', 'Accept': 'application/geo+json' };
+
+                const pointsResp = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: NWS_HEADERS });
+                if (!pointsResp.ok) throw new Error(`NWS points API error: ${pointsResp.status}`);
+                const pointsData = await pointsResp.json();
+                const gridUrl = pointsData.properties.forecastGridData;
+
+                const gridResp = await fetch(gridUrl, { headers: NWS_HEADERS });
+                if (!gridResp.ok) throw new Error(`NWS griddata API error: ${gridResp.status}`);
+                const gridData = await gridResp.json();
+                const props = gridData.properties;
+
+                const today = getTodayString();
+
+                // Extract local date "YYYY-MM-DD" from an NDFD validTime string
+                function parseNdfdDate(validTime) {
+                    return validTime.split('/')[0].slice(0, 10);
+                }
+
+                // Aggregate period values into daily buckets and apply aggregateFn
+                function aggregateByDay(values, aggregateFn) {
+                    const byDay = {};
+                    for (const v of values) {
+                        const date = parseNdfdDate(v.validTime);
+                        if (date < today) continue;
+                        if (v.value === null || v.value === undefined) continue;
+                        if (!byDay[date]) byDay[date] = [];
+                        byDay[date].push(v.value);
+                    }
+                    const result = {};
+                    for (const date of Object.keys(byDay)) {
+                        result[date] = aggregateFn(byDay[date]);
+                    }
+                    return result;
+                }
+
+                // Max/min temperature per day (°C → °F)
+                const maxTempByDay = aggregateByDay(props.maxTemperature.values,
+                    vals => Math.max(...vals) * 9 / 5 + 32);
+                const minTempByDay = aggregateByDay(props.minTemperature.values,
+                    vals => Math.min(...vals) * 9 / 5 + 32);
+
+                // Precipitation sum per day (mm)
+                const precipByDay = aggregateByDay(props.quantitativePrecipitation.values,
+                    vals => vals.reduce((a, b) => a + b, 0));
+
+                // Precipitation probability max per day (%)
+                const popByDay = aggregateByDay(props.probabilityOfPrecipitation.values,
+                    vals => Math.max(...vals));
+
+                // Weather: most severe WMO code per day
+                const weatherByDay = {};
+                for (const v of props.weather.values) {
+                    const date = parseNdfdDate(v.validTime);
+                    if (date < today) continue;
+                    const code = ndfdWeatherToWmoCode(v.value);
+                    if (!(date in weatherByDay) || code > weatherByDay[date]) {
+                        weatherByDay[date] = code;
+                    }
+                }
+
+                // Wind speed max per day; convert to km/h based on the reported unit
+                const windByDay = {};
+                if (props.windSpeed) {
+                    const uom = props.windSpeed.uom || '';
+                    let toKmh = 1;
+                    if (uom.indexOf('m_s') !== -1) toKmh = 3.6;
+                    else if (uom.indexOf('knot') !== -1) toKmh = 1.852;
+                    const rawWind = aggregateByDay(props.windSpeed.values, vals => Math.max(...vals));
+                    for (const date of Object.keys(rawWind)) {
+                        windByDay[date] = rawWind[date] * toKmh;
+                    }
+                }
+
+                const days = Object.keys(maxTempByDay)
+                    .filter(d => minTempByDay[d] != null)
+                    .sort();
+
+                return {
+                    daily: {
+                        time: days,
+                        temperature_2m_max: days.map(d => maxTempByDay[d]),
+                        temperature_2m_min: days.map(d => minTempByDay[d]),
+                        precipitation_sum: days.map(d => precipByDay[d] != null ? precipByDay[d] : 0),
+                        precipitation_probability_max: days.map(d => popByDay[d] != null ? Math.round(popByDay[d]) : null),
+                        weathercode: days.map(d => weatherByDay[d] != null ? weatherByDay[d] : 0),
+                        windspeed_10m_max: days.map(d => windByDay[d] != null ? windByDay[d] : 0)
+                    }
+                };
+            }
+
+            /**
+             * Merges two forecast data objects (same shape) by concatenating their daily arrays.
+             */
+            function mergeForecastData(a, b) {
+                const fields = ['time', 'temperature_2m_min', 'temperature_2m_max', 'precipitation_sum',
+                                'precipitation_probability_max', 'weathercode', 'windspeed_10m_max'];
+                const merged = { daily: {} };
+                for (const field of fields) {
+                    const aArr = (a.daily && a.daily[field]) ? a.daily[field] : [];
+                    const bArr = (b.daily && b.daily[field]) ? b.daily[field] : [];
+                    merged.daily[field] = aArr.concat(bArr);
+                }
+                return merged;
+            }
+
+            /**
+             * Returns the calendar day after the given YYYY-MM-DD date string.
+             */
+            function nextDay(dateStr) {
+                const d = new Date(dateStr + 'T00:00:00');
+                d.setDate(d.getDate() + 1);
+                return localDateStr(d);
+            }
+
+            /**
+             * Fetches extended forecast data from Open-Meteo GFS.
+             * Used for days beyond the NDFD window, or as a full fallback when NDFD is unavailable.
              */
             async function fetchOpenMeteoData(lat, lon, startDate, endDate) {
                 if (new Date(startDate) > new Date(endDate)) {
