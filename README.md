@@ -37,7 +37,7 @@ python -m http.server 8000
 4. Click "Estimate Next Mow Date".
 
 The app will:
-- Pull historical daily min/max temperatures and precipitation from ACIS PRISM.
+- Pull historical daily min/max temperatures and precipitation from ACIS PRISM. PRISM provisional data lags real-time by a day or two; recent days it hasn't published yet are backfilled from Open-Meteo GFS (the same PRISM-first / forecast-fallback model used for temperature), so the full period since your last mow is covered.
 - Pull a 15-day forecast (including precipitation) from NWS NDFD (~7 days, US only) and Open-Meteo GFS (extended range or fallback for non-US locations).
 - Compute MGDD accumulation since last mowing, adjusted for recent precipitation, and estimate when the target is reached.
 - Display a chart and daily breakdown with a Rain column showing daily precipitation.
@@ -75,7 +75,7 @@ After calculating the estimated mow date, the app recommends the **best day to m
 
 ### Precipitation Adjustment
 
-Daily MGDD contributions are scaled based on a rolling 7-day precipitation total compared to the grass type's optimal water need. When recent rainfall is below optimal, growth contributions are reduced (down to 50%). A moisture status indicator shows current conditions after calculation.
+Daily MGDD contributions are scaled based on a rolling 7-day precipitation total compared to the grass type's optimal water need. When recent rainfall is below optimal, growth contributions are reduced (down to 50%). After calculation, a moisture status indicator summarizes total precipitation across the whole analysis window — from your last mow through the end of the forecast (observed plus forecast rainfall, not just the last 7 days). Historical rainfall comes from PRISM where available; recent days PRISM hasn't published yet are filled from Open-Meteo so the full period since your last mow is covered.
 
 - **Irrigated toggle**: Enable this to bypass precipitation adjustments if your lawn is irrigated.
 - **Climatology mode** does not apply precipitation scaling (30-year averages already reflect typical precipitation).

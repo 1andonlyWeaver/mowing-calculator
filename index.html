@@ -567,10 +567,10 @@
 
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Precipitation and moisture</h3>
-                    <p>In real-time mode, the tool adjusts daily MGDD contributions based on recent rainfall. A rolling 7-day precipitation total is compared to each grass type's optimal water need. When rainfall is below optimal, daily growth contributions are scaled down (to a minimum of 50% &mdash; grass slows but rarely stops completely during growing season). When rainfall meets or exceeds the optimal amount, no reduction is applied.</p>
+                    <p>In real-time mode, the tool adjusts daily MGDD contributions based on recent rainfall. A rolling 7-day precipitation total is compared to each grass type's optimal water need. When rainfall is below optimal, daily growth contributions are scaled down (to a minimum of 50% &mdash; grass slows but rarely stops completely during growing season). When rainfall meets or exceeds the optimal amount, no reduction is applied. Historical rainfall comes from PRISM where available; recent days PRISM hasn&apos;t published yet are filled from Open-Meteo so the full period since your last mow is included.</p>
                     <ul class="list-disc list-inside space-y-1 ml-2 mt-1">
                         <li><strong>Irrigated toggle</strong> &mdash; If your lawn is irrigated, enable this to bypass precipitation adjustments entirely (multiplier always 1.0).</li>
-                        <li><strong>Moisture status</strong> &mdash; After calculation, a status indicator shows current soil moisture conditions: adequate (green), slightly dry (yellow), or drought stress (red). Irrigated mode shows blue.</li>
+                        <li><strong>Moisture status</strong> &mdash; After calculation, a status indicator summarizes total precipitation across the whole analysis window &mdash; from your last mow through the end of the forecast (observed plus forecast rainfall, not just the last 7 days): adequate (green), slightly dry (yellow), or drought stress (red). Irrigated mode shows blue.</li>
                         <li><strong>Precipitation probability</strong> &mdash; The forecast table and weather strip show the daily chance of rain (from NDFD for the first ~7 days, Open-Meteo GFS beyond that). This column is hidden for climate normals rows and suppressed in irrigated mode.</li>
                         <li><strong>Climatology mode</strong> does not apply precipitation scaling, since 30-year averages already incorporate typical precipitation patterns.</li>
                     </ul>
@@ -599,7 +599,7 @@
                 <section>
                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Data sources</h3>
                     <ul class="list-disc list-inside space-y-1 ml-2">
-                        <li>Historical weather: <a href="https://data.rcc-acis.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">ACIS PRISM GridData</a> (Regional Climate Centers)</li>
+                        <li>Historical weather: <a href="https://data.rcc-acis.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">ACIS PRISM GridData</a> (Regional Climate Centers). PRISM provisional data lags by a day or two; recent days it hasn&apos;t published yet are backfilled from Open-Meteo GFS, the same way temperature falls back to the forecast.</li>
                         <li>Forecast weather: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">NWS NDFD</a> (short-range, ~7 days) + <a href="https://open-meteo.com/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">Open-Meteo GFS</a> (extended to 15 days)</li>
                         <li>Map tiles: <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener" class="text-green-600 hover:text-green-800 underline">OpenStreetMap</a></li>
                     </ul>
@@ -1178,7 +1178,7 @@
 
             function getPrecipScaleFactor(precipWindow, optimalPrecip) {
                 if (!precipWindow || precipWindow.length === 0) return 1.0;
-                const valid = precipWindow.filter(v => v !== null && v !== undefined);
+                const valid = precipWindow.filter(v => Number.isFinite(v) && v >= 0);
                 if (valid.length === 0) return 1.0;
                 const total = valid.reduce((s, v) => s + v, 0);
                 const scaledOptimal = optimalPrecip * (valid.length / 7);
@@ -1266,6 +1266,40 @@
                          throw new Error("Weather data could not be retrieved. Please try again.");
                     }
 
+                    // --- BACKFILL PRISM-MISSING HISTORICAL DAYS FROM OPEN-METEO ---
+                    // PRISM (ACIS GridData) provisional data lags real-time by ~1+ days; missing
+                    // days are now normalized to null (see fetchAcisData). Mirror how temperature
+                    // is sourced: use PRISM where available, Open-Meteo where not, so the full
+                    // last-mow -> present period feeds the dryness window with real precipitation.
+                    const histDaily = historicalData.daily;
+                    const hasMissingHistorical = histDaily.time.some((_, i) =>
+                        histDaily.temperature_2m_max[i] === null ||
+                        histDaily.temperature_2m_min[i] === null ||
+                        histDaily.precipitation_sum[i] === null);
+                    if (hasMissingHistorical) {
+                        try {
+                            const fillData = await fetchOpenMeteoData(lat, lon, getFutureDateString(-16), getYesterdayString());
+                            if (fillData.daily && Array.isArray(fillData.daily.time)) {
+                                const fillIdxByDate = {};
+                                fillData.daily.time.forEach((d, j) => { fillIdxByDate[d] = j; });
+                                histDaily.time.forEach((d, i) => {
+                                    const j = fillIdxByDate[d];
+                                    if (j === undefined) return;
+                                    if (histDaily.temperature_2m_max[i] === null && fillData.daily.temperature_2m_max[j] != null)
+                                        histDaily.temperature_2m_max[i] = fillData.daily.temperature_2m_max[j];
+                                    if (histDaily.temperature_2m_min[i] === null && fillData.daily.temperature_2m_min[j] != null)
+                                        histDaily.temperature_2m_min[i] = fillData.daily.temperature_2m_min[j];
+                                    if (histDaily.precipitation_sum[i] === null && fillData.daily.precipitation_sum[j] != null) {
+                                        const mm = fillData.daily.precipitation_sum[j];
+                                        histDaily.precipitation_sum[i] = (mm > 0) ? mm / 25.4 : 0;
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.warn('Open-Meteo backfill of PRISM-missing days failed; proceeding:', e);
+                        }
+                    }
+
                     // --- GROWING SEASON GATE (Feb 15 biofix + hard freeze reset + day-length floor + cumulative GDD + precipitation) ---
                     const grassType = grassTypeSelect ? grassTypeSelect.value : 'custom';
                     const currentYear = getYesterdayString().slice(0, 4);
@@ -1335,9 +1369,8 @@
                     const irrigated = irrigatedToggle ? irrigatedToggle.checked : false;
                     const preset = grassPresets[grassType];
                     const optimalPrecip = preset ? preset.optimalPrecip : defaultOptimalPrecip;
-                    const precipWindow = []; // rolling 7-day window (inches)
-                    let latestScaleFactor = 1.0;
-                    let latestPrecip7day = 0;
+                    const precipWindow = []; // rolling 7-day window (inches), drives per-day growth scaling
+                    const periodPrecips = []; // every daily precip from last mow through the end of the forecast (all available data), drives the moisture status
                     let dormancyEndIndex = -1;
                     const showDormancy = !growingSeasonStart || new Date(growingSeasonStart + 'T00:00:00') > lastMowedDateObj;
 
@@ -1348,6 +1381,7 @@
                         if (precipWindow.length > 7) precipWindow.shift();
 
                         const currentDate = new Date(date + 'T00:00:00');
+                        if (currentDate > lastMowedDateObj) periodPrecips.push(pVal);
 
                         // Dormancy period — after last mow but before growing season
                         if (showDormancy && currentDate > lastMowedDateObj && currentDate < effectiveStart) {
@@ -1361,9 +1395,6 @@
                             const scaleFactor = irrigated ? 1.0 : getPrecipScaleFactor(precipWindow, optimalPrecip);
                             const dailyGDD = rawGDD * scaleFactor;
                             accumulatedGDD += dailyGDD;
-                            latestScaleFactor = scaleFactor;
-                            const validPrecip = precipWindow.filter(v => v !== null && v !== undefined);
-                            latestPrecip7day = validPrecip.reduce((s, v) => s + v, 0);
                             chartLabels.push(new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
                             observedValues.push(accumulatedGDD);
                             if (!windowStartDate && accumulatedGDD >= lowerTarget) {
@@ -1408,9 +1439,7 @@
                         const scaleFactor = irrigated ? 1.0 : getPrecipScaleFactor(precipWindow, optimalPrecip);
                         const dailyGDD = rawGDD * scaleFactor;
                         forecastAccumulation += dailyGDD;
-                        latestScaleFactor = scaleFactor;
-                        const validPrecip = precipWindow.filter(v => v !== null && v !== undefined);
-                        latestPrecip7day = validPrecip.reduce((s, v) => s + v, 0);
+                        if (forecastDate > lastMowedDateObj) periodPrecips.push(precipIn);
 
                         const displayDate = new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                         chartLabels.push(displayDate);
@@ -1524,7 +1553,12 @@
                     showResults();
 
                     // --- Moisture Status Display ---
-                    renderMoistureStatus({ irrigated, latestScaleFactor, latestPrecip7day });
+                    // --- MOISTURE STATUS (whole between-mows period: last mow -> today) ---
+                    const periodValidPrecip = periodPrecips.filter(v => Number.isFinite(v) && v >= 0);
+                    const periodPrecipTotal = periodValidPrecip.reduce((s, v) => s + v, 0);
+                    const periodDayCount = periodValidPrecip.length;
+                    const moistureScaleFactor = irrigated ? 1.0 : getPrecipScaleFactor(periodPrecips, optimalPrecip);
+                    renderMoistureStatus({ irrigated, moistureScaleFactor, periodPrecipTotal, periodDayCount });
 
                     // --- Mow Window Display ---
                     const mowWindowEl = document.getElementById('mowWindow');
@@ -1594,7 +1628,7 @@
                         targetGDD,
                         forecastRows,
                         weatherStrips,
-                        moistureData: { irrigated, latestScaleFactor, latestPrecip7day },
+                        moistureData: { irrigated, moistureScaleFactor, periodPrecipTotal, periodDayCount },
                         normalsUsed: normalsUsed,
                         bestDayResult,
                         estimatedMowDate,
@@ -1766,23 +1800,26 @@
                 const moistureLabelEl = document.getElementById('moistureLabel');
                 const moistureDetailEl = document.getElementById('moistureDetail');
                 if (!moistureStatusEl || !moistureLabelEl || !moistureDetailEl) return;
-                const precipStr = `${toDisplayPrecip(data.latestPrecip7day).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}`;
+                const precipStr = `${toDisplayPrecip(data.periodPrecipTotal).toFixed(unitSystem === 'metric' ? 1 : 2)} ${precipUnit()}`;
+                const windowStr = data.periodDayCount > 0
+                    ? `${precipStr} over ${data.periodDayCount} day${data.periodDayCount === 1 ? '' : 's'} (last mow to forecast end)`
+                    : `${precipStr} (last mow to forecast end)`;
                 if (data.irrigated) {
                     moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
                     moistureLabelEl.textContent = 'Irrigated';
                     moistureDetailEl.textContent = 'Precipitation adjustments bypassed';
-                } else if (data.latestScaleFactor >= 0.9) {
+                } else if (data.moistureScaleFactor >= 0.9) {
                     moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300';
                     moistureLabelEl.textContent = 'Adequate moisture';
-                    moistureDetailEl.textContent = `7-day precip: ${precipStr}`;
-                } else if (data.latestScaleFactor >= 0.7) {
+                    moistureDetailEl.textContent = windowStr;
+                } else if (data.moistureScaleFactor >= 0.7) {
                     moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
                     moistureLabelEl.textContent = 'Slightly dry';
-                    moistureDetailEl.textContent = `7-day precip: ${precipStr} — growth rate reduced`;
+                    moistureDetailEl.textContent = `${windowStr} — growth rate reduced`;
                 } else {
                     moistureStatusEl.className = 'rounded-lg p-3 text-sm mt-2 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300';
                     moistureLabelEl.textContent = 'Drought stress';
-                    moistureDetailEl.textContent = `7-day precip: ${precipStr} — growth significantly reduced`;
+                    moistureDetailEl.textContent = `${windowStr} — growth significantly reduced`;
                 }
                 moistureStatusEl.classList.remove('hidden');
             }
@@ -1929,17 +1966,25 @@
                 const acisResult = await response.json();
                 if (acisResult.error) throw new Error(`ACIS API returned an error: ${acisResult.error}`);
 
+                // ACIS GridData reports missing values as the numeric sentinel -999
+                // (not the 'M' string used by StnData). Normalize any missing value to
+                // null so downstream code can detect "PRISM doesn't have this day yet"
+                // and fall back to Open-Meteo, instead of poisoning the calculation.
+                function parseAcisVal(v) {
+                    if (v === 'M' || v === undefined || v === null) return null;
+                    const n = parseFloat(v);
+                    if (!Number.isFinite(n) || n <= -998) return null;
+                    return n;
+                }
                 const formattedData = { daily: { time: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_sum: [] } };
                 acisResult.data.forEach(day => {
-                    if (day[1] !== 'M' && day[2] !== 'M') {
-                        formattedData.daily.time.push(day[0]);
-                        formattedData.daily.temperature_2m_max.push(parseFloat(day[1]));
-                        formattedData.daily.temperature_2m_min.push(parseFloat(day[2]));
-                        let precip = null;
-                        if (day[3] === 'T') precip = 0.01;
-                        else if (day[3] !== 'M' && day[3] !== undefined) precip = parseFloat(day[3]);
-                        formattedData.daily.precipitation_sum.push(precip);
-                    }
+                    formattedData.daily.time.push(day[0]);
+                    formattedData.daily.temperature_2m_max.push(parseAcisVal(day[1]));
+                    formattedData.daily.temperature_2m_min.push(parseAcisVal(day[2]));
+                    let precip;
+                    if (day[3] === 'T') precip = 0.01; // trace
+                    else precip = parseAcisVal(day[3]);
+                    formattedData.daily.precipitation_sum.push(precip);
                 });
                 return formattedData;
             }
